@@ -1,0 +1,17 @@
+[package]
+name = "hydra"
+version = "0.1.0"
+authors = ["Eleanor McMurtry <elmcmurtry1@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0.110", features = ["derive"] }
+serde_json = "1.0.53"
+num-bigint = { version = "0.2.6", features = ["rand", "serde"] }
+ring = "0.16.13"
+curve25519-dalek = { version = "2.0.0", features = ["serde"] }
+#rand = "0.7.3"
+num-traits = "0.2.11"
+base64 = "0.12.1"
