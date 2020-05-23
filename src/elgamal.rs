@@ -9,14 +9,28 @@ use ring::rand::SecureRandom;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
-use crate::curve::{CurveElem, Scalar};
-use crate::sign::SigningKeypair;
+use crate::curve::{Scalar};
+use crate::sign::SigningKeyPair;
+use crate::curve;
 
-impl Display for PublicKey {
+#[derive(Clone, Copy, Debug)]
+pub enum CryptoError {
+    Unspecified(ring::error::Unspecified),
+    KeyRejected(ring::error::KeyRejected),
+    Misc,
+    CommitmentMissing,
+    CommitmentPartMissing,
+    ShareRejected,
+    KeygenMissing,
+}
+
+impl Display for CryptoError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.y.as_biguint().to_str_radix(36))
+        write!(f, "{:?}", self)
     }
 }
+
+impl Error for CryptoError {}
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -25,7 +39,16 @@ pub struct KeyPair {
     pub y_i: CurveElem,
 }
 
-#[derive(Copy, Clone)]
+impl KeyPair {
+    fn new(ctx: &mut CryptoContext) -> Result<Self, CryptoError> {
+        let x_i = ctx.random_power()?;
+        let y_i = ctx.g_to(&x_i);
+        let pk = PublicKey::new(y_i);
+        Ok(Self { pk, x_i, y_i })
+    }
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     y: CurveElem,
 }
@@ -48,6 +71,12 @@ impl PublicKey {
     }
 }
 
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.y.as_biguint().to_str_radix(36))
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Ciphertext {
     pub c1: CurveElem,
@@ -61,6 +90,10 @@ impl Ciphertext {
             c2: &self.c2 + &rhs.c2,
         }
     }
+
+    pub fn decrypt(&self, secret_key: &Scalar) -> CurveElem {
+        &self.c2 - &(self.c1.scaled(secret_key))
+    }
 }
 
 impl Display for Ciphertext {
@@ -71,26 +104,12 @@ impl Display for Ciphertext {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum CryptoError {
-    Unspecified(ring::error::Unspecified),
-    KeyRejected(ring::error::KeyRejected),
-    Misc,
-}
-
-impl Display for CryptoError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl Error for CryptoError {}
-
 // TODO: make this a proper type, add "finish_biguint" and "finish_scalar" functions
 pub type Hasher = digest::Context;
 pub type Digest = digest::Digest;
+pub type CurveElem = curve::CurveElem;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct CryptoContext {
     rng: Arc<Mutex<ring::rand::SystemRandom>>,
     g: CurveElem,
@@ -106,13 +125,23 @@ impl CryptoContext {
         }
     }
 
+    pub fn cloned(&self) -> Self {
+        let rng = self.rng.clone();
+        let g = self.g.clone();
+        Self { rng, g }
+    }
+
     pub fn generator(&self) -> CurveElem {
         self.g.clone()
     }
 
-    pub fn gen_ed25519_key_pair(&mut self) -> Result<SigningKeypair, CryptoError> {
+    pub fn gen_ed25519_key_pair(&mut self) -> Result<SigningKeyPair, CryptoError> {
         let rng = self.rng.lock().unwrap();
-        return SigningKeypair::try_from(rng.deref())
+        return SigningKeyPair::try_from(rng.deref())
+    }
+
+    pub fn gen_elgamal_key_pair(&mut self) -> Result<KeyPair, CryptoError> {
+        KeyPair::new(self)
     }
 
     pub fn random_power(&mut self) -> Result<Scalar, CryptoError> {
@@ -146,6 +175,45 @@ impl CryptoContext {
     pub fn hash_bigint(&self, data: &BigUint) -> Digest {
         self.hash_bytes(&data.to_bytes_be())
     }
+
+    pub fn random_polynomial(&mut self, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
+        let ctx = self.cloned();
+        let x_i = self.random_power()?;
+        let mut coefficients = Vec::with_capacity(k);
+        coefficients.push(x_i);
+        for _ in 1..k {
+            coefficients.push(self.random_power()?);
+        }
+
+        Ok(Polynomial { k, n, x_i, ctx, coefficients })
+    }
+}
+
+#[derive(Debug)]
+pub struct Polynomial {
+    k: usize,
+    n: usize,
+    x_i: Scalar,
+    ctx: CryptoContext,
+    coefficients: Vec<Scalar>,
+}
+
+impl Polynomial {
+    pub fn get_pubkey_share(&self) -> CurveElem {
+        self.ctx.g_to(&self.x_i)
+    }
+
+    pub fn get_public_params(&self) -> Vec<CurveElem> {
+        self.coefficients.iter()
+            .map(|coeff| self.ctx.g_to(coeff))
+            .collect()
+    }
+
+    pub fn evaluate(&self, i: u32) -> Scalar {
+        (0..self.k).map(|l| {
+            self.coefficients.get(l).unwrap() * Scalar::from(i.pow(l as u32))
+        }).sum()
+    }
 }
 
 #[cfg(test)]
@@ -174,7 +242,8 @@ mod test {
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);
-        let decryption = &prod.c2 - &(prod.c1.scaled(&x));
+        // let decryption = &prod.c2 - &(prod.c1.scaled(&x));
+        let decryption = prod.decrypt(&x);
 
         let combined = &m1 + &m2;
 

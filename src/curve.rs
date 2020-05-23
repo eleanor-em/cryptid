@@ -7,6 +7,8 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::error::Error;
 use std::ops::{Add, Sub};
+use curve25519_dalek::traits::Identity;
+use std::iter::Sum;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum CurveError {
@@ -26,10 +28,11 @@ impl Error for CurveError {}
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct CurveElem(RistrettoPoint);
 
-// #[derive(Copy, Clone, Serialize, Deserialize)]
-// pub struct CurveElement {
-//     pub p: RistrettoPoint,
-// }
+impl CurveElem {
+    pub fn identity() -> Self {
+        Self(RistrettoPoint::identity())
+    }
+}
 
 const K: u32 = 10;
 
@@ -54,6 +57,11 @@ impl CurveElem {
     pub fn as_biguint(&self) -> BigUint {
         BigUint::from_bytes_be(&self.as_bytes())
     }
+
+    pub fn as_base64(&self) -> String {
+        base64::encode(&self.as_bytes())
+    }
+
 
     pub fn decoded(&self) -> BigUint {
         let adjusted = Scalar::from_bytes_mod_order(self.0.compress().to_bytes());
@@ -98,6 +106,12 @@ impl Sub for &CurveElem {
 
     fn sub(self, rhs: Self) -> Self::Output {
         CurveElem(self.0 - rhs.0)
+    }
+}
+
+impl Sum for CurveElem {
+    fn sum<I: Iterator<Item=Self>>(iter: I) -> Self {
+        iter.fold(Self::identity(), |acc, x| acc + x)
     }
 }
 

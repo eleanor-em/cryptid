@@ -52,6 +52,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cryptid"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "curve25519-dalek",
+ "num-bigint",
+ "num-traits",
+ "ring",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -98,19 +111,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
-]
-
-[[package]]
-name = "hydra"
-version = "0.1.0"
-dependencies = [
- "base64",
- "curve25519-dalek",
- "num-bigint",
- "num-traits",
- "ring",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -189,9 +189,9 @@ checksum = "0b631f7e854af39a1739f401cf34a8a013dfe09eac4fa4dba91e9768bd28168d"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.14"
+version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de40dd4ff82d9c9bab6dae29dbab1167e515f8df9ed17d2987cb6012db206933"
+checksum = "70a50b9351bfa8d65a7d93ce712dc63d2fd15ddbf2c36990fc7cac344859c04f"
 dependencies = [
  "unicode-xid",
 ]

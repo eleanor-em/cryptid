@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::convert::TryFrom;
+use std::ops::Deref;
 
 use ring::signature;
 use ring::signature::KeyPair;
 
 use crate::elgamal::CryptoError;
-use std::ops::Deref;
 
 pub struct SigningPubKey<'a>(signature::UnparsedPublicKey<&'a [u8]>);
 
@@ -18,13 +18,13 @@ impl SigningPubKey<'_> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature(Vec<u8>);
 
-pub struct SigningKeypair {
+pub struct SigningKeyPair {
     pkcs8: Vec<u8>,
     keypair: signature::Ed25519KeyPair,
 }
 
 
-impl SigningKeypair {
+impl SigningKeyPair {
     pub fn as_base64(&self) -> String {
         base64::encode(&self.pkcs8)
     }
@@ -39,7 +39,7 @@ impl SigningKeypair {
     }
 }
 
-impl TryFrom<&ring::rand::SystemRandom> for SigningKeypair {
+impl TryFrom<&ring::rand::SystemRandom> for SigningKeyPair {
     type Error = CryptoError;
 
     fn try_from(rng: &ring::rand::SystemRandom) -> Result<Self, Self::Error> {
@@ -51,11 +51,11 @@ impl TryFrom<&ring::rand::SystemRandom> for SigningKeypair {
         let keypair = signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref())
             .map_err(|e| CryptoError::KeyRejected(e))?;
 
-        Ok(SigningKeypair { pkcs8, keypair })
+        Ok(SigningKeyPair { pkcs8, keypair })
     }
 }
 
-impl TryFrom<Vec<u8>> for SigningKeypair {
+impl TryFrom<Vec<u8>> for SigningKeyPair {
     type Error = Box<dyn Error>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -73,7 +73,7 @@ fn ed25519_try_from(bytes: &[u8]) -> Result<signature::Ed25519KeyPair, CryptoErr
 #[cfg(test)]
 mod test {
     use crate::elgamal::CryptoContext;
-    use crate::sign::SigningKeypair;
+    use crate::sign::SigningKeyPair;
     use std::convert::TryFrom;
 
     #[test]
@@ -86,7 +86,7 @@ mod test {
         assert!(keypair.pub_key().verify(message, &sig1));
 
         let encoded = keypair.as_base64();
-        let decoded = SigningKeypair::try_from(encoded.into_bytes()).unwrap();
+        let decoded = SigningKeyPair::try_from(encoded.into_bytes()).unwrap();
         let sig2 = decoded.sign(message);
         assert!(keypair.pub_key().verify(message, &sig2));
 
