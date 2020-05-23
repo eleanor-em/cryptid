@@ -28,7 +28,7 @@ impl PrfKnowDlog {
         let a = g.scaled(&z);
         // Calculate the challenge
         let c = Self::challenge(g, y, &a)?;
-        let r = z + c * x;
+        let r = Scalar(z.0 + c.0 * x.0);
 
         Ok(Self {
             g: g.clone(),
@@ -84,7 +84,7 @@ impl PrfEqDlogs {
         let a = f.scaled(&z);
         let b = h.scaled(&z);
         let c = Self::challenge(&f, &h, &v, &w, &a, &b)?;
-        let r = z + c * x;
+        let r = Scalar(z.0 + c.0 * x.0);
         Ok(Self {
             v: v.clone(),
             f: f.clone(),
@@ -105,9 +105,9 @@ impl PrfEqDlogs {
 
 #[cfg(test)]
 mod tests {
-    use curve25519_dalek::scalar::Scalar;
     use crate::elgamal::CryptoContext;
     use crate::zkp::{PrfKnowDlog, PrfEqDlogs};
+    use crate::{DalekScalar, Scalar};
 
     #[test]
     fn test_exp_sane() {
@@ -124,7 +124,7 @@ mod tests {
         let mut ctx = CryptoContext::new();
         let a = ctx.random_power().unwrap();
         let b = ctx.random_power().unwrap();
-        let r = a + b;
+        let r = Scalar(a.0 + b.0);
 
         let x = ctx.g_to(&r);
         let y = ctx.g_to(&a) + ctx.g_to(&b);
@@ -149,7 +149,7 @@ mod tests {
         let y = ctx.g_to(&x);
         let g = ctx.generator();
         let mut proof = PrfKnowDlog::new(&mut ctx, &g, &x, &y).unwrap();
-        proof.r += &Scalar::one();
+        proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify().unwrap());
     }
@@ -183,7 +183,7 @@ mod tests {
         let w = h.scaled(&x);
 
         let mut proof = PrfEqDlogs::new(&mut ctx, &f, &h, &v, &w, &x).unwrap();
-        proof.r += &Scalar::one();
+        proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify().unwrap());
     }

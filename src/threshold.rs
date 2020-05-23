@@ -4,9 +4,9 @@ use std::convert::identity;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
-use crate::curve::CurveElem;
-use crate::elgamal::{Polynomial, CryptoContext, AuthCiphertext};
-use crate::{zkp, CryptoError, Scalar};
+use crate::curve::{ CurveElem, Polynomial };
+use crate::elgamal::{ CryptoContext, AuthCiphertext};
+use crate::{zkp, CryptoError, Scalar, DalekScalar};
 
 // Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
 // key generation and decryption protocol.
@@ -18,7 +18,7 @@ pub struct ThresholdContext {
     k: u32,
     n: u32,
     polynomial: Polynomial,
-    shares: HashMap<u32, Scalar>,
+    shares: HashMap<u32, DalekScalar>,
     commitments: HashMap<u32, Vec<CurveElem>>,
 }
 
@@ -30,7 +30,7 @@ impl ThresholdContext {
             -> Result<Self, CryptoError> {
         if id > 0 && id <= n {
             let mut ctx = ctx.cloned();
-            let f_i = ctx.random_polynomial(k, n)?;
+            let f_i = Polynomial::random(&mut ctx, k, n)?;
             let id = id as u32;
             let k = k as u32;
             let n = n as u32;
@@ -88,7 +88,7 @@ impl ThresholdContext {
 
             let rhs = rhs.into_iter().sum();
             if lhs == rhs {
-                if self.shares.insert(sender_id, share.clone()).is_none() {
+                if self.shares.insert(sender_id, share.0.clone()).is_none() {
                     Ok(())
                 } else {
                     Err(CryptoError::ShareDuplicated)
@@ -108,7 +108,7 @@ impl ThresholdContext {
 
     fn get_secret_share(&self) -> Option<Scalar> {
         if self.complete() {
-            Some(self.shares.values().sum())
+            Some(Scalar(self.shares.values().sum()))
         } else {
             None
         }
@@ -117,7 +117,9 @@ impl ThresholdContext {
     // Returns this party's share of the public key.
     pub fn get_pubkey_share(&self) -> Option<CurveElem> {
         self.get_secret_share()
-            .map(|s_i| self.ctx.g_to(&s_i).scaled(&lambda(self.n, self.id)))
+            .map(|s_i| self.ctx.g_to(&s_i).scaled(
+                &Scalar(lambda(self.n, self.id))
+            ))
     }
 
     // Returns this party's share of a decryption.
@@ -127,7 +129,7 @@ impl ThresholdContext {
         let y_i = self.get_pubkey_share();
 
         if let (Some(s_i), Some(y_i)) = (s_i, y_i) {
-            let l_i = &s_i * lambda(self.n, self.id);
+            let l_i = Scalar(lambda(self.n, self.id) * &s_i.0);
             let a_i = c1.scaled(&l_i);
             let g = self.ctx.generator();
             let proof = zkp::PrfEqDlogs::new(
@@ -145,7 +147,7 @@ impl ThresholdContext {
 }
 
 // Lagrange coefficient calculation
-fn lambda(n: u32, j: u32) -> Scalar {
+fn lambda(n: u32, j: u32) -> DalekScalar {
     // let mut prod = 1.0;
     let mut numerator = 1;
     let mut denominator = 1;
@@ -162,9 +164,9 @@ fn lambda(n: u32, j: u32) -> Scalar {
 
     // Convert signed int to scalar
     if result < 0 {
-        -Scalar::from((-result) as u32)
+        -DalekScalar::from((-result) as u32)
     } else {
-        Scalar::from(result as u32)
+        DalekScalar::from(result as u32)
     }
 }
 
@@ -220,12 +222,12 @@ impl Decryption {
         Ok(results.into_iter().all(identity))
     }
 
-    pub fn result(&self) -> Result<BigUint, CryptoError> {
+    pub fn result(&self) -> Result<Scalar, CryptoError> {
         if self.complete() {
             let a = self.a.iter().map(|share| share.a_i).sum();
             let plaintext = self.ct.contents.c2 - a;
             if self.ct.verify(&plaintext) {
-                Ok(plaintext.decoded())
+                plaintext.decoded()
             } else {
                 Err(CryptoError::AuthTagRejected)
             }
@@ -277,7 +279,7 @@ mod test {
         // Send the shares
         shares.iter().for_each(|(&receiver_id, share_set)| {
             share_set.iter().for_each(|(&sender_id, share)| {
-                parties.get_mut((receiver_id - 1) as usize).unwrap()
+                parties[(receiver_id - 1) as usize]
                     .receive_share(sender_id, share)
                     .expect(&format!("{} rejected share from {}", receiver_id, sender_id));
             });
@@ -324,7 +326,6 @@ mod test {
         pks.iter().zip(&shares).for_each(|(pk, share)| decrypted.add_share(&share, &pk));
 
         assert!(decrypted.verify().unwrap());
-        assert_eq!(decrypted.result().unwrap().to_str_radix(32),
-                   m.decoded().to_str_radix(32));
+        assert_eq!(decrypted.result().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 }

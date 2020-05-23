@@ -3,9 +3,51 @@ use std::error::Error;
 
 use ring::digest;
 use num_bigint::BigUint;
-use curve25519_dalek::scalar::Scalar as DalekScalar;
+use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
+use serde::{Serialize, Deserialize};
+use std::convert::TryFrom;
+use std::ops::{Mul, Add, AddAssign, Sub};
+use std::iter::Sum;
+use curve25519_dalek::ristretto::RistrettoPoint;
 
-pub type Scalar = DalekScalar;
+type DalekScalar = InternalDalekScalar;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Scalar(DalekScalar);
+
+impl Scalar {
+    pub fn as_base64(&self) -> String {
+        base64::encode(self.as_bytes())
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_bytes(self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+
+    fn zero() -> Self {
+        Self(DalekScalar::zero())
+    }
+
+    fn one() -> Self {
+        Self(DalekScalar::one())
+    }
+}
+
+impl From<u32> for Scalar {
+    fn from(n: u32) -> Self {
+        Self(n.into())
+    }
+}
+
+impl From<[u8; 32]> for Scalar {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(DalekScalar::from_bytes_mod_order(bytes).reduce())
+    }
+}
 
 pub struct Hasher(digest::Context);
 
@@ -23,14 +65,13 @@ impl Hasher {
         self.0.finish()
     }
 
-    pub fn finish_biguint(self) -> BigUint {
-        let bytes = self.finish();
-        BigUint::from_bytes_be(bytes.as_ref())
+    pub fn finish_scalar(self) -> Result<Scalar, CryptoError> {
+        curve::to_scalar(BigUint::from_bytes_be(self.finish().as_ref()))
+            .map_err(|_| CryptoError::Misc)
     }
 
-    pub fn finish_scalar(self) -> Result<Scalar, CryptoError> {
-        curve::to_scalar(self.finish_biguint())
-            .map_err(|_| CryptoError::Misc)
+    pub fn finish_vec(self) -> Vec<u8> {
+        self.finish().as_ref().to_vec()
     }
 }
 

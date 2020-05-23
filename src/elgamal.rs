@@ -4,8 +4,9 @@ use std::sync::{Mutex, Arc};
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::{curve, CryptoError, Hasher};
+use crate::{curve, CryptoError, Hasher, DalekScalar};
 use crate::Scalar;
+use crate::curve::Polynomial;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -53,7 +54,7 @@ impl PublicKey {
 
 impl Display for PublicKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.y.as_biguint().to_str_radix(36))
+        write!(f, "{}", self.y.as_base64())
     }
 }
 
@@ -79,8 +80,8 @@ impl Ciphertext {
 impl Display for Ciphertext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})",
-               self.c1.as_biguint().to_str_radix(36),
-               self.c2.as_biguint().to_str_radix(36))
+               self.c1.as_base64(),
+               self.c2.as_base64())
     }
 }
 
@@ -119,8 +120,8 @@ impl AuthCiphertext {
 impl Display for AuthCiphertext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})[{}]",
-               self.contents.c1.as_biguint().to_str_radix(36),
-               self.contents.c2.as_biguint().to_str_radix(36),
+               self.contents.c1.as_base64(),
+               self.contents.c2.as_base64(),
                base64::encode(&self.hash))
     }
 }
@@ -162,50 +163,11 @@ impl CryptoContext {
         let mut buf = [0; 32];
         rng.fill(&mut buf)
             .map_err(|e| CryptoError::Unspecified(e))?;
-        Ok(Scalar::from_bytes_mod_order(buf).reduce())
+        Ok(buf.into())
     }
 
     pub fn g_to(&self, power: &Scalar) -> CurveElem {
         self.g.scaled(power)
-    }
-
-    pub fn random_polynomial(&mut self, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
-        let ctx = self.cloned();
-        let x_i = self.random_power()?;
-        let mut coefficients = Vec::with_capacity(k);
-        coefficients.push(x_i);
-        for _ in 1..k {
-            coefficients.push(self.random_power()?);
-        }
-
-        Ok(Polynomial { k, n, x_i, ctx, coefficients })
-    }
-}
-
-#[derive(Debug)]
-pub struct Polynomial {
-    k: usize,
-    n: usize,
-    x_i: Scalar,
-    ctx: CryptoContext,
-    coefficients: Vec<Scalar>,
-}
-
-impl Polynomial {
-    pub fn get_pubkey_share(&self) -> CurveElem {
-        self.ctx.g_to(&self.x_i)
-    }
-
-    pub fn get_public_params(&self) -> Vec<CurveElem> {
-        self.coefficients.iter()
-            .map(|coeff| self.ctx.g_to(coeff))
-            .collect()
-    }
-
-    pub fn evaluate(&self, i: u32) -> Scalar {
-        (0..self.k).map(|l| {
-            self.coefficients.get(l).unwrap() * Scalar::from(i.pow(l as u32))
-        }).sum()
     }
 }
 

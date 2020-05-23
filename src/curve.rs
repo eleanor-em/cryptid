@@ -7,16 +7,16 @@ use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
-use crate::{CryptoError, Scalar};
+use crate::{CryptoError, Scalar, DalekScalar};
+use crate::elgamal::CryptoContext;
 
 const K: u32 = 10;
-
 
 pub fn to_scalar(s: BigUint) -> Result<Scalar, CryptoError> {
     let mut s = s.to_bytes_le();
     s.resize(32, 0);
     let bytes = <[u8; 32]>::try_from(s.as_slice()).map_err(|_| CryptoError::Decoding)?;
-    Ok(Scalar::from_bytes_mod_order(bytes))
+    Ok(bytes.into())
 }
 
 pub fn to_biguint(s: Scalar) -> BigUint {
@@ -35,22 +35,18 @@ impl CurveElem {
         *self.0.compress().as_bytes()
     }
 
-    pub fn as_biguint(&self) -> BigUint {
-        BigUint::from_bytes_be(&self.as_bytes())
-    }
-
     pub fn as_base64(&self) -> String {
         base64::encode(&self.as_bytes())
     }
 
 
-    pub fn decoded(&self) -> BigUint {
-        let adjusted = Scalar::from_bytes_mod_order(self.0.compress().to_bytes());
-        BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K)
+    pub fn decoded(&self) -> Result<Scalar, CryptoError> {
+        let adjusted = Scalar::from(self.0.compress().to_bytes());
+        to_scalar(BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K))
     }
 
     pub fn scaled(&self, other: &Scalar) -> Self {
-        Self(self.0 * other)
+        Self(other.0 * self.0)
     }
 
     pub fn generator() -> Self {
@@ -101,21 +97,23 @@ impl TryFrom<Scalar> for CurveElem {
 
     fn try_from(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
-        let bits = to_biguint(s.clone()).bits();
+        let bits = to_biguint(s).bits();
+
+        let mut s = s.0;
         if bits > (252 - K) as usize {
             return Err(CryptoError::Encoding);
         }
 
-        let buffer = Scalar::from(2u32.pow(K));
-        let s = s * buffer;
-        let mut d = Scalar::zero();
+        let buffer = DalekScalar::from(2u32.pow(K));
+        s *= buffer;
+        let mut d = DalekScalar::zero();
         loop {
             if let Some(p) = CompressedRistretto((s + d).to_bytes()).decompress() {
                 return Ok(Self(p));
             }
 
-            d += &Scalar::one();
-            if d - buffer == Scalar::zero() {
+            d += DalekScalar::one();
+            if d - buffer == DalekScalar::zero() {
                 return Err(CryptoError::Encoding);
             }
         }
@@ -151,6 +149,45 @@ impl TryFrom<u64> for CurveElem {
 
     fn try_from(n: u64) -> Result<Self, CryptoError> {
         Self::try_from(BigUint::from(n))
+    }
+}
+
+#[derive(Debug)]
+pub struct Polynomial {
+    k: usize,
+    n: usize,
+    x_i: Scalar,
+    ctx: CryptoContext,
+    coefficients: Vec<DalekScalar>,
+}
+
+impl Polynomial {
+    pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
+        let mut ctx = ctx.cloned();
+        let x_i = ctx.random_power()?;
+        let mut coefficients = Vec::with_capacity(k);
+        coefficients.push(x_i.0);
+        for _ in 1..k {
+            coefficients.push(ctx.random_power()?.0);
+        }
+
+        Ok(Polynomial { k, n, x_i, ctx, coefficients })
+    }
+
+    pub fn get_pubkey_share(&self) -> CurveElem {
+        self.ctx.g_to(&self.x_i)
+    }
+
+    pub fn get_public_params(&self) -> Vec<CurveElem> {
+        self.coefficients.iter()
+            .map(|coeff| self.ctx.g_to(&Scalar(coeff.clone())))
+            .collect()
+    }
+
+    pub fn evaluate(&self, i: u32) -> Scalar {
+        Scalar((0..self.k).map(|l| {
+            self.coefficients[l] * DalekScalar::from(i.pow(l as u32))
+        }).sum())
     }
 }
 
