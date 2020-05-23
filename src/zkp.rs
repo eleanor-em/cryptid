@@ -1,8 +1,8 @@
 use serde::{Serialize, Deserialize};
 
 use crate::elgamal::CryptoContext;
-use crate::curve::{Scalar, CurveElem};
-use crate::{CryptoError, Hasher};
+use crate::curve::CurveElem;
+use crate::{CryptoError, Hasher, Scalar};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowDlog {

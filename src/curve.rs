@@ -1,38 +1,21 @@
 use std::convert::TryFrom;
-use std::error::Error;
-use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, Sub};
 
 use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
-use curve25519_dalek::scalar::Scalar as DalekScalar;
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum CurveError {
-    Encoding,
-    Decoding,
-    Size,
-}
-
-impl fmt::Display for CurveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl Error for CurveError {}
+use crate::{CryptoError, Scalar};
 
 const K: u32 = 10;
 
-pub type Scalar = DalekScalar;
 
-pub fn to_scalar(s: BigUint) -> Result<Scalar, CurveError> {
+pub fn to_scalar(s: BigUint) -> Result<Scalar, CryptoError> {
     let mut s = s.to_bytes_le();
     s.resize(32, 0);
-    let bytes = <[u8; 32]>::try_from(s.as_slice()).map_err(|_| CurveError::Size)?;
+    let bytes = <[u8; 32]>::try_from(s.as_slice()).map_err(|_| CryptoError::Decoding)?;
     Ok(Scalar::from_bytes_mod_order(bytes))
 }
 
@@ -114,13 +97,13 @@ impl Sum for CurveElem {
 }
 
 impl TryFrom<Scalar> for CurveElem {
-    type Error = CurveError;
+    type Error = CryptoError;
 
-    fn try_from(s: Scalar) -> Result<Self, CurveError> {
+    fn try_from(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
         let bits = to_biguint(s.clone()).bits();
         if bits > (252 - K) as usize {
-            return Err(CurveError::Encoding);
+            return Err(CryptoError::Encoding);
         }
 
         let buffer = Scalar::from(2u32.pow(K));
@@ -133,22 +116,22 @@ impl TryFrom<Scalar> for CurveElem {
 
             d += &Scalar::one();
             if d - buffer == Scalar::zero() {
-                return Err(CurveError::Encoding);
+                return Err(CryptoError::Encoding);
             }
         }
     }
 }
 
 impl TryFrom<BigUint> for CurveElem {
-    type Error = CurveError;
+    type Error = CryptoError;
 
-    fn try_from(n: BigUint) -> Result<Self, CurveError> {
+    fn try_from(n: BigUint) -> Result<Self, CryptoError> {
         to_scalar(n).and_then(|s| Self::try_from(s))
     }
 }
 
 impl TryFrom<&[u8]> for CurveElem {
-    type Error = CurveError;
+    type Error = CryptoError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Self::try_from(BigUint::from_bytes_be(value))
@@ -156,17 +139,17 @@ impl TryFrom<&[u8]> for CurveElem {
 }
 
 impl TryFrom<u32> for CurveElem {
-    type Error = CurveError;
+    type Error = CryptoError;
 
-    fn try_from(n: u32) -> Result<Self, CurveError> {
+    fn try_from(n: u32) -> Result<Self, CryptoError> {
         Self::try_from(BigUint::from(n))
     }
 }
 
 impl TryFrom<u64> for CurveElem {
-    type Error = CurveError;
+    type Error = CryptoError;
 
-    fn try_from(n: u64) -> Result<Self, CurveError> {
+    fn try_from(n: u64) -> Result<Self, CryptoError> {
         Self::try_from(BigUint::from(n))
     }
 }

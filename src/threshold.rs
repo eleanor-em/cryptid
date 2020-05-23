@@ -4,9 +4,9 @@ use std::convert::identity;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
-use crate::curve::{Scalar, CurveElem};
+use crate::curve::CurveElem;
 use crate::elgamal::{Polynomial, CryptoContext, AuthCiphertext};
-use crate::{zkp, CryptoError};
+use crate::{zkp, CryptoError, Scalar};
 
 // Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
 // key generation and decryption protocol.
@@ -315,7 +315,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
         let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt_auth(&ctx, &m, &r).unwrap();
+        let ct = pk.encrypt_auth(&ctx, &m, &r);
 
         let mut decrypted = Decryption::new(parties.len(), &ctx, &ct);
         let shares: Vec<_> = parties.iter_mut()

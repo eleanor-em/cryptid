@@ -1,8 +1,11 @@
 use std::fmt::{Display, Formatter};
 use std::error::Error;
+
 use ring::digest;
 use num_bigint::BigUint;
-use crate::curve::Scalar;
+use curve25519_dalek::scalar::Scalar as DalekScalar;
+
+pub type Scalar = DalekScalar;
 
 pub struct Hasher(digest::Context);
 
@@ -37,6 +40,8 @@ pub type Digest = digest::Digest;
 pub enum CryptoError {
     Unspecified(ring::error::Unspecified),
     KeyRejected(ring::error::KeyRejected),
+    Encoding,
+    Decoding,
     Misc,
     InvalidId,
     CommitmentDuplicated,

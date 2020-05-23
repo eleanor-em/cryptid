@@ -5,7 +5,7 @@ use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
 use crate::{curve, CryptoError, Hasher};
-use crate::curve::{Scalar};
+use crate::Scalar;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -33,15 +33,15 @@ impl PublicKey {
         Self { y: value }
     }
 
-    pub fn encrypt(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> Option<Ciphertext> {
+    pub fn encrypt(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> Ciphertext {
         let c1 = ctx.g_to(r);
         let c2 = m + &self.y.scaled(r);
-        Some(Ciphertext { c1, c2 })
+        Ciphertext { c1, c2 }
     }
 
-    pub fn encrypt_auth(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> Option<AuthCiphertext> {
-        self.encrypt(ctx, m, r)
-            .map(|ct| AuthCiphertext::new(&ct, m))
+    pub fn encrypt_auth(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> AuthCiphertext {
+        let ct = self.encrypt(ctx, m, r);
+        AuthCiphertext::new(&ct, m)
     }
 
     pub fn rerand(self, ctx: &CryptoContext, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
@@ -229,8 +229,8 @@ mod test {
         let r2 = ctx.random_power().unwrap();
 
         // Encrypt the messages
-        let ct1 = y.encrypt(&ctx, &m1.into(), &r1).unwrap();
-        let ct2 = y.encrypt(&ctx, &m2.into(), &r2).unwrap();
+        let ct1 = y.encrypt(&ctx, &m1.into(), &r1);
+        let ct2 = y.encrypt(&ctx, &m2.into(), &r2);
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);
@@ -251,7 +251,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m = ctx.g_to(&r);
         let m_r = ctx.random_power().unwrap();
-        let ct = y.encrypt_auth(&ctx, &m, &m_r).unwrap();
+        let ct = y.encrypt_auth(&ctx, &m, &m_r);
 
         assert_eq!(ct.decrypt(&x).unwrap(), m);
     }
@@ -265,7 +265,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m = ctx.g_to(&r);
         let m_r = ctx.random_power().unwrap();
-        let ct = y.encrypt_auth(&ctx, &m, &m_r).unwrap();
+        let ct = y.encrypt_auth(&ctx, &m, &m_r);
 
         let r = ctx.random_power().unwrap();
         let m_dash = ctx.g_to(&r);
