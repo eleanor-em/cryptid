@@ -1,14 +1,14 @@
+use std::convert::TryFrom;
+use std::error::Error;
+use std::fmt;
+use std::iter::Sum;
+use std::ops::{Add, Sub};
+
+use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
+use curve25519_dalek::scalar::Scalar as DalekScalar;
+use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
-use curve25519_dalek::scalar::Scalar as DalekScalar;
-use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
-
-use std::convert::TryFrom;
-use std::fmt;
-use std::error::Error;
-use std::ops::{Add, Sub};
-use curve25519_dalek::traits::Identity;
-use std::iter::Sum;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum CurveError {

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
+use std::convert::identity;
 
 use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
+use crate::curve::{Scalar, CurveElem};
 use crate::elgamal::{Polynomial, KeyPair, CryptoContext, PublicKey, Ciphertext, CryptoError};
 use crate::sign::{SigningKeyPair, SigningPubKey, Signature};
-use crate::curve::{Scalar, CurveElem};
 use crate::zkp;
-use std::convert::identity;
 
 pub struct ThresholdContext {
     ctx: CryptoContext,

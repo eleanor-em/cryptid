@@ -1,9 +1,7 @@
 use serde::{Serialize, Deserialize};
-use num_bigint::BigUint;
 
-use crate::elgamal::{CryptoError, CryptoContext};
+use crate::elgamal::{CryptoError, CryptoContext, Hasher};
 use crate::curve::{Scalar, CurveElem};
-use crate::curve;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowDlog {
@@ -15,14 +13,13 @@ pub struct PrfKnowDlog {
 
 impl PrfKnowDlog {
     fn challenge(g: &CurveElem, y: &CurveElem, a: &CurveElem) -> Result<Scalar, CryptoError> {
-        let mut hasher = CryptoContext::hasher();
+        let mut hasher = Hasher::new();
 
         hasher.update(&g.as_bytes());
         hasher.update(&y.as_bytes());
         hasher.update(&a.as_bytes());
 
-        curve::to_scalar(BigUint::from_bytes_be(hasher.finish().as_ref()))
-            .map_err(|_| CryptoError::Misc)
+        hasher.finish_scalar()
     }
 
     /// Proves that we know x such that y = g^x
@@ -67,7 +64,7 @@ impl PrfEqDlogs {
                  w: &CurveElem,
                  a: &CurveElem,
                  b: &CurveElem) -> Result<Scalar, CryptoError> {
-        let mut hasher = CryptoContext::hasher();
+        let mut hasher = Hasher::new();
 
         hasher.update(&f.as_bytes());
         hasher.update(&h.as_bytes());
@@ -76,8 +73,7 @@ impl PrfEqDlogs {
         hasher.update(&a.as_bytes());
         hasher.update(&b.as_bytes());
 
-        curve::to_scalar(BigUint::from_bytes_be(hasher.finish().as_ref()))
-            .map_err(|_| CryptoError::Misc)
+        hasher.finish_scalar()
     }
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x

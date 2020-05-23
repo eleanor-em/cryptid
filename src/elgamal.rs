@@ -1,17 +1,17 @@
-use std::fmt::{Formatter, Display};
-use std::error::Error;
-use std::sync::{Mutex, Arc};
-use std::ops::Deref;
 use std::convert::TryFrom;
+use std::error::Error;
+use std::fmt::{Formatter, Display};
+use std::ops::Deref;
+use std::sync::{Mutex, Arc};
 
+use num_bigint::BigUint;
 use ring::digest;
 use ring::rand::SecureRandom;
-use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
+use crate::curve;
 use crate::curve::{Scalar};
 use crate::sign::SigningKeyPair;
-use crate::curve;
 
 #[derive(Clone, Copy, Debug)]
 pub enum CryptoError {
@@ -109,7 +109,33 @@ impl Display for Ciphertext {
 }
 
 // TODO: make this a proper type, add "finish_biguint" and "finish_scalar" functions
-pub type Hasher = digest::Context;
+pub struct Hasher(digest::Context);
+
+impl Hasher {
+    pub fn new() -> Self {
+        Self(digest::Context::new(&digest::SHA512))
+    }
+
+    pub fn update(&mut self, data: &[u8]) {
+        self.0.update(&data);
+    }
+
+    pub fn finish(self) -> Digest {
+        self.0.finish()
+    }
+
+    pub fn finish_biguint(self) -> BigUint {
+        let bytes = self.finish();
+        BigUint::from_bytes_be(bytes.as_ref())
+    }
+
+    pub fn finish_scalar(self) -> Result<Scalar, CryptoError> {
+        curve::to_scalar(self.finish_biguint())
+            .map_err(|_| CryptoError::Misc)
+    }
+}
+
+
 pub type Digest = digest::Digest;
 pub type CurveElem = curve::CurveElem;
 
@@ -160,18 +186,14 @@ impl CryptoContext {
         self.g.scaled(power)
     }
 
-    pub fn hasher() -> Hasher {
-        digest::Context::new(&digest::SHA512)
-    }
-
     pub fn hash_bytes(&self, data: &[u8]) -> Digest {
-        let mut hasher = Self::hasher();
+        let mut hasher = Hasher::new();
         hasher.update(data);
         hasher.finish()
     }
 
     pub fn hash_elem(&self, data: &CurveElem) -> Digest {
-        let mut hasher = Self::hasher();
+        let mut hasher = Hasher::new();
         hasher.update(&data.as_bytes());
         hasher.finish()
     }
