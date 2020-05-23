@@ -5,84 +5,98 @@ use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{Scalar, CurveElem};
-use crate::elgamal::{Polynomial, KeyPair, CryptoContext, PublicKey, Ciphertext, CryptoError};
-use crate::sign::{SigningKeyPair, SigningPubKey, Signature};
+use crate::elgamal::{Polynomial, CryptoContext, Ciphertext, CryptoError};
 use crate::zkp;
 
+// Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
+// key generation and decryption protocol.
+//
+// See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
 pub struct ThresholdContext {
     ctx: CryptoContext,
     id: u32,
     k: u32,
     n: u32,
     polynomial: Polynomial,
-    signing: SigningKeyPair,
-    encryption: KeyPair,
     shares: HashMap<u32, Scalar>,
     commitments: HashMap<u32, Vec<CurveElem>>,
 }
 
 impl ThresholdContext {
-    // See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf
-    pub fn new(ctx: &mut CryptoContext, id: usize, k: usize, n: usize) -> Result<Self, CryptoError> {
-        let mut ctx = ctx.cloned();
-        let f_i = ctx.random_polynomial(k, n)?;
-        let id = id as u32;
-        let k = k as u32;
-        let n = n as u32;
+    // Create a new party with a given ID (unique and nonzero).
+    // k = the minimum number for decryption
+    // n = the total number of parties
+    pub fn new(ctx: &mut CryptoContext, id: usize, k: usize, n: usize)
+            -> Result<Self, CryptoError> {
+        if id > 0 && id <= n {
+            let mut ctx = ctx.cloned();
+            let f_i = ctx.random_polynomial(k, n)?;
+            let id = id as u32;
+            let k = k as u32;
+            let n = n as u32;
 
-        let signing = ctx.gen_ed25519_key_pair()?;
-        let encryption = ctx.gen_elgamal_key_pair()?;
-        let s_j = HashMap::new();
-        let commitments = HashMap::new();
+            let shares = HashMap::new();
+            let commitments = HashMap::new();
 
-        Ok(Self { ctx, id, polynomial: f_i, k, n, signing, encryption, shares: s_j, commitments })
+            Ok(Self { ctx, id, polynomial: f_i, k, n, shares, commitments })
+        } else {
+            Err(CryptoError::InvalidId)
+        }
     }
 
-    pub fn get_signing_pubkey(&self) -> SigningPubKey {
-        self.signing.pub_key()
-    }
-
-    pub fn get_encryption_pubkey(&self) -> PublicKey {
-        self.encryption.pk
-    }
-
-    pub fn sign(&self, msg: &[u8]) -> Signature {
-        self.signing.sign(msg)
-    }
-
-    pub fn decrypt(&self, ct: Ciphertext) -> BigUint {
-        ct.decrypt(&self.encryption.x_i).decoded()
-    }
-
+    // Returns the commitment vector to be shared publicly.
     pub fn get_commitment(&self) -> Vec<CurveElem> {
         self.polynomial.get_public_params()
     }
 
-    pub fn get_polynomial_share(&self, id: u32) -> Scalar {
-        self.polynomial.evaluate(id)
+    // Returns the polynomial secret share for the given id -- not to be shared publicly.
+    pub fn get_polynomial_share(&self, id: u32) -> Result<Scalar, CryptoError> {
+        if id > 0 && id <= self.n {
+            Ok(self.polynomial.evaluate(id))
+        } else {
+            Err(CryptoError::InvalidId)
+        }
     }
 
-    pub fn receive_commitment(&mut self, sender_id: u32, commitment: &Vec<CurveElem>) {
-        self.commitments.insert(sender_id, commitment.clone());
+    // Receives a commitment from a particular party.
+    pub fn receive_commitment(&mut self, sender_id: u32, commitment: &Vec<CurveElem>)
+            -> Result<(), CryptoError>{
+        if sender_id > 0 && sender_id <= self.n {
+            if self.commitments.insert(sender_id, commitment.clone()).is_none() {
+                Ok(())
+            } else {
+                Err(CryptoError::CommitmentDuplicated)
+            }
+        } else {
+            Err(CryptoError::InvalidId)
+        }
     }
 
     pub fn receive_share(&mut self, sender_id: u32, share: &Scalar) -> Result<(), CryptoError> {
-        self.shares.insert(sender_id, share.clone());
-        let lhs = self.ctx.g_to(share);
-        let commitment = self.commitments.get(&sender_id).ok_or(CryptoError::CommitmentMissing)?;
+        if sender_id > 0 && sender_id <= self.n {
+            let lhs = self.ctx.g_to(share);
+            let commitment = self.commitments.get(&sender_id)
+                .ok_or(CryptoError::CommitmentMissing)?;
 
-        // Verify the commitment
-        let rhs = (0..self.k).map(|l| {
-            let power = Scalar::from(self.id.pow(l));
-            let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
-            Ok(base.scaled(&power))
-        }).collect::<Result<Vec<_>, _>>()?;
+            // Verify the commitment
+            let rhs = (0..self.k).map(|l| {
+                let power = Scalar::from(self.id.pow(l));
+                let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
+                Ok(base.scaled(&power))
+            }).collect::<Result<Vec<_>, _>>()?;
 
-        let rhs = rhs.into_iter().sum();
-        if lhs == rhs {
-            Ok(())
+            let rhs = rhs.into_iter().sum();
+            if lhs == rhs {
+                if self.shares.insert(sender_id, share.clone()).is_none() {
+                    Ok(())
+                } else {
+                    Err(CryptoError::ShareDuplicated)
+                }
+            } else {
+                Err(CryptoError::ShareRejected)
+            }
         } else {
-            Err(CryptoError::ShareRejected)
+            Err(CryptoError::InvalidId)
         }
     }
 
@@ -138,8 +152,8 @@ fn lambda(n: u32, j: u32) -> Scalar {
         }
     }
 
-    // let result = prod as i32;
     let result = numerator / denominator;
+
     // Convert signed int to scalar
     if result < 0 {
         -Scalar::from((-result) as u32)
@@ -233,7 +247,9 @@ mod test {
 
         // Send the commitments
         commitments.iter().for_each(|(&sender_id, commitment)| {
-            parties.iter_mut().for_each(|receiver| receiver.receive_commitment(sender_id, commitment));
+            parties.iter_mut().for_each(|receiver| {
+                receiver.receive_commitment(sender_id, commitment).unwrap()
+            });
         });
 
         // Generate the shares
@@ -241,7 +257,8 @@ mod test {
         parties.iter().for_each(|receiver| {
             let mut receiver_shares = HashMap::new();
             parties.iter().for_each(|sender| {
-                receiver_shares.insert(sender.id, sender.get_polynomial_share(receiver.id));
+                let share = sender.get_polynomial_share(receiver.id).unwrap();
+                receiver_shares.insert(sender.id, share);
             });
             shares.insert(receiver.id, receiver_shares);
         });

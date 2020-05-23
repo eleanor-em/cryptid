@@ -18,8 +18,11 @@ pub enum CryptoError {
     Unspecified(ring::error::Unspecified),
     KeyRejected(ring::error::KeyRejected),
     Misc,
+    InvalidId,
+    CommitmentDuplicated,
     CommitmentMissing,
     CommitmentPartMissing,
+    ShareDuplicated,
     ShareRejected,
     KeygenMissing,
 }
