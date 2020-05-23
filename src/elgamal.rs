@@ -189,22 +189,6 @@ impl CryptoContext {
         self.g.scaled(power)
     }
 
-    pub fn hash_bytes(&self, data: &[u8]) -> Digest {
-        let mut hasher = Hasher::new();
-        hasher.update(data);
-        hasher.finish()
-    }
-
-    pub fn hash_elem(&self, data: &CurveElem) -> Digest {
-        let mut hasher = Hasher::new();
-        hasher.update(&data.as_bytes());
-        hasher.finish()
-    }
-
-    pub fn hash_bigint(&self, data: &BigUint) -> Digest {
-        self.hash_bytes(&data.to_bytes_be())
-    }
-
     pub fn random_polynomial(&mut self, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
         let ctx = self.cloned();
         let x_i = self.random_power()?;
