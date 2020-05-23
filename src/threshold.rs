@@ -72,6 +72,7 @@ impl ThresholdContext {
         }
     }
 
+    // Receives a share from a particular party.
     pub fn receive_share(&mut self, sender_id: u32, share: &Scalar) -> Result<(), CryptoError> {
         if sender_id > 0 && sender_id <= self.n {
             let lhs = self.ctx.g_to(share);
@@ -100,6 +101,7 @@ impl ThresholdContext {
         }
     }
 
+    // Returns true if the key has been fully generated.
     pub fn complete(&self) -> bool {
         self.shares.len() == self.n as usize
     }
@@ -112,11 +114,13 @@ impl ThresholdContext {
         }
     }
 
+    // Returns this party's share of the public key.
     pub fn get_pubkey_share(&self) -> Option<CurveElem> {
         self.get_secret_share()
             .map(|s_i| self.ctx.g_to(&s_i).scaled(&lambda(self.n, self.id)))
     }
 
+    // Returns this party's share of a decryption.
     pub fn get_decrypt_share(&mut self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
         let s_i = self.get_secret_share();
         let y_i = self.get_pubkey_share();

@@ -13,13 +13,11 @@ pub struct PrfKnowDlog {
 
 impl PrfKnowDlog {
     fn challenge(g: &CurveElem, y: &CurveElem, a: &CurveElem) -> Result<Scalar, CryptoError> {
-        let mut hasher = Hasher::new();
-
-        hasher.update(&g.as_bytes());
-        hasher.update(&y.as_bytes());
-        hasher.update(&a.as_bytes());
-
-        hasher.finish_scalar()
+        Hasher::new()
+            .update(&g.as_bytes())
+            .update(&y.as_bytes())
+            .update(&a.as_bytes())
+            .finish_scalar()
     }
 
     /// Proves that we know x such that y = g^x
@@ -64,16 +62,14 @@ impl PrfEqDlogs {
                  w: &CurveElem,
                  a: &CurveElem,
                  b: &CurveElem) -> Result<Scalar, CryptoError> {
-        let mut hasher = Hasher::new();
-
-        hasher.update(&f.as_bytes());
-        hasher.update(&h.as_bytes());
-        hasher.update(&v.as_bytes());
-        hasher.update(&w.as_bytes());
-        hasher.update(&a.as_bytes());
-        hasher.update(&b.as_bytes());
-
-        hasher.finish_scalar()
+        Hasher::new()
+            .update(&f.as_bytes())
+            .update(&h.as_bytes())
+            .update(&v.as_bytes())
+            .update(&w.as_bytes())
+            .update(&a.as_bytes())
+            .update(&b.as_bytes())
+            .finish_scalar()
     }
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x

@@ -64,6 +64,11 @@ impl PublicKey {
         Some(Ciphertext { c1, c2 })
     }
 
+    pub fn encrypt_auth(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> Option<AuthCiphertext> {
+        self.encrypt(ctx, m, r)
+            .map(|ct| AuthCiphertext::new(&ct, m))
+    }
+
     pub fn rerand(self, ctx: &CryptoContext, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
         let c1 = &ct.c1 + &ctx.g_to(r);
         let c2 = &ct.c2 + &self.y.scaled(r);
@@ -84,10 +89,6 @@ pub struct Ciphertext {
 }
 
 impl Ciphertext {
-    pub fn cloned(&self) -> Self {
-        Ciphertext { c1: self.c1, c2: self.c2 }
-    }
-
     pub fn add(&self, rhs: &Self) -> Self {
         Ciphertext {
             c1: &self.c1 + &rhs.c1,
@@ -108,7 +109,47 @@ impl Display for Ciphertext {
     }
 }
 
-// TODO: make this a proper type, add "finish_biguint" and "finish_scalar" functions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthCiphertext {
+    ct: Ciphertext,
+    hash: Vec<u8>,
+}
+
+impl AuthCiphertext {
+    fn new(ct: &Ciphertext, plaintext: &CurveElem) -> Self {
+        let hash = Hasher::new()
+            .update(&plaintext.as_bytes())
+            .finish().as_ref().to_vec();
+        Self { ct: ct.clone(), hash }
+    }
+
+    pub fn verify(&self, plaintext: &CurveElem) -> bool {
+        let hash = Hasher::new()
+            .update(&plaintext.as_bytes())
+            .finish().as_ref().to_vec();
+
+        self.hash == hash
+    }
+
+    pub fn decrypt(&self, secret_key: &Scalar) -> Option<CurveElem> {
+        let plaintext = self.ct.decrypt(secret_key);
+        if self.verify(&plaintext) {
+            Some(plaintext)
+        } else {
+            None
+        }
+    }
+}
+
+impl Display for AuthCiphertext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})[{}]",
+               self.ct.c1.as_biguint().to_str_radix(36),
+               self.ct.c2.as_biguint().to_str_radix(36),
+               base64::encode(&self.hash))
+    }
+}
+
 pub struct Hasher(digest::Context);
 
 impl Hasher {
@@ -116,8 +157,9 @@ impl Hasher {
         Self(digest::Context::new(&digest::SHA512))
     }
 
-    pub fn update(&mut self, data: &[u8]) {
+    pub fn update(mut self, data: &[u8]) -> Self {
         self.0.update(&data);
+        self
     }
 
     pub fn finish(self) -> Digest {
@@ -223,20 +265,19 @@ impl Polynomial {
 
 #[cfg(test)]
 mod test {
-    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::elgamal::{CryptoContext, PublicKey, Ciphertext, AuthCiphertext};
 
     #[test]
     fn test_homomorphism() {
         let mut ctx = CryptoContext::new();
-
         let x = ctx.random_power().unwrap();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         // Construct two messages
-        let r1 = &ctx.random_power().unwrap();
-        let r2 = &ctx.random_power().unwrap();
-        let m1 = ctx.g_to(r1);
-        let m2 = ctx.g_to(r2);
+        let r1 = ctx.random_power().unwrap();
+        let r2 = ctx.random_power().unwrap();
+        let m1 = ctx.g_to(&r1);
+        let m2 = ctx.g_to(&r2);
 
         let r1 = ctx.random_power().unwrap();
         let r2 = ctx.random_power().unwrap();
@@ -253,5 +294,45 @@ mod test {
         let combined = &m1 + &m2;
 
         assert_eq!(combined, decryption);
+    }
+
+    #[test]
+    fn test_authtag() {
+        let mut ctx = CryptoContext::new();
+        let x = ctx.random_power().unwrap();
+        let y = PublicKey::new(ctx.g_to(&x).into());
+
+        let r = ctx.random_power().unwrap();
+        let m = ctx.g_to(&r);
+        let m_r = ctx.random_power().unwrap();
+        let ct = y.encrypt_auth(&ctx, &m, &m_r).unwrap();
+
+        assert_eq!(ct.decrypt(&x).unwrap(), m);
+    }
+
+    #[test]
+    fn test_authtag_fail() {
+        let mut ctx = CryptoContext::new();
+        let x = ctx.random_power().unwrap();
+        let y = PublicKey::new(ctx.g_to(&x).into());
+
+        let r = ctx.random_power().unwrap();
+        let m = ctx.g_to(&r);
+        let m_r = ctx.random_power().unwrap();
+        let ct = y.encrypt_auth(&ctx, &m, &m_r).unwrap();
+
+        let r = ctx.random_power().unwrap();
+        let m_dash = ctx.g_to(&r);
+        let ct_modified = Ciphertext {
+            c1: ct.ct.c1,
+            c2: ct.ct.c2 + m_dash,
+        };
+        let auth_modified = AuthCiphertext {
+            ct: ct_modified.clone(),
+            hash: ct.hash.clone(),
+        };
+
+        assert!(!auth_modified.verify(&(m + m_dash)));
+        assert_eq!(ct_modified.decrypt(&x), m + m_dash);
     }
 }
