@@ -103,3 +103,16 @@ pub mod elgamal;
 mod curve;
 pub mod zkp;
 pub mod threshold;
+
+#[cfg(test)]
+mod tests {
+    use crate::Hasher;
+    use crate::curve::CurveElem;
+
+    #[test]
+    fn test_hash_encoding() {
+        let msg = b"hello world";
+        let scalar = Hasher::sha_256().update(msg).finish_scalar();
+        CurveElem::try_from_truncate(&scalar).unwrap();
+    }
+}

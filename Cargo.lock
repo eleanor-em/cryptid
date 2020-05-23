@@ -53,7 +53,7 @@ dependencies = [
 
 [[package]]
 name = "cryptid"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64",
  "curve25519-dalek",

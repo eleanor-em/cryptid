@@ -66,6 +66,12 @@ impl CurveElem {
     pub fn generator() -> Self {
         Self(curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT)
     }
+
+    pub fn try_from_truncate(s: &Scalar) -> Result<Self, CryptoError> {
+        let mut vec = s.0.as_bytes().to_vec();
+        vec.truncate((252 - K as usize) / 8);
+        Self::try_from(to_scalar(BigUint::from_bytes_le(&vec)))
+    }
 }
 
 impl Add for CurveElem {
