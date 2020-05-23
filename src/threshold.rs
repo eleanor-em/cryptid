@@ -144,6 +144,18 @@ impl ThresholdContext {
             Err(CryptoError::KeygenMissing)
         }
     }
+
+    pub fn get_id(&self) -> usize {
+        self.id as usize
+    }
+
+    pub fn get_k(&self) -> usize {
+        self.k as usize
+    }
+
+    pub fn get_n(&self) -> usize {
+        self.n as usize
+    }
 }
 
 // Lagrange coefficient calculation
