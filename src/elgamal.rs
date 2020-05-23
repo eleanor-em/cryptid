@@ -1,7 +1,5 @@
-use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt::{Formatter, Display};
-use std::ops::Deref;
 use std::sync::{Mutex, Arc};
 
 use num_bigint::BigUint;
@@ -11,7 +9,6 @@ use serde::{Serialize, Deserialize};
 
 use crate::curve;
 use crate::curve::{Scalar};
-use crate::sign::SigningKeyPair;
 
 #[derive(Clone, Copy, Debug)]
 pub enum CryptoError {
@@ -166,11 +163,6 @@ impl CryptoContext {
 
     pub fn generator(&self) -> CurveElem {
         self.g.clone()
-    }
-
-    pub fn gen_ed25519_key_pair(&mut self) -> Result<SigningKeyPair, CryptoError> {
-        let rng = self.rng.lock().unwrap();
-        return SigningKeyPair::try_from(rng.deref())
     }
 
     pub fn gen_elgamal_key_pair(&mut self) -> Result<KeyPair, CryptoError> {
