@@ -4,6 +4,8 @@ use std::error::Error;
 use ring::digest;
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use serde::{Serialize, Deserialize};
+use num_bigint::BigUint;
+use crate::curve::to_scalar;
 
 type DalekScalar = InternalDalekScalar;
 
@@ -25,6 +27,12 @@ impl Scalar {
 
     pub fn max_size_bytes() -> usize {
         curve::scalar_max_size_bytes()
+    }
+
+    pub fn truncated(&self) -> Self {
+        let mut vec = s.0.as_bytes().to_vec();
+        vec.truncate((252 - K as usize) / 8);
+        to_scalar(BigUint::from_bytes_le(&vec))
     }
 }
 
