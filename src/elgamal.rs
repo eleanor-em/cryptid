@@ -1,36 +1,11 @@
-use std::error::Error;
 use std::fmt::{Formatter, Display};
 use std::sync::{Mutex, Arc};
 
-use num_bigint::BigUint;
-use ring::digest;
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::curve;
+use crate::{curve, CryptoError, Hasher};
 use crate::curve::{Scalar};
-
-#[derive(Clone, Copy, Debug)]
-pub enum CryptoError {
-    Unspecified(ring::error::Unspecified),
-    KeyRejected(ring::error::KeyRejected),
-    Misc,
-    InvalidId,
-    CommitmentDuplicated,
-    CommitmentMissing,
-    CommitmentPartMissing,
-    ShareDuplicated,
-    ShareRejected,
-    KeygenMissing,
-}
-
-impl Display for CryptoError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl Error for CryptoError {}
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -111,7 +86,7 @@ impl Display for Ciphertext {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthCiphertext {
-    ct: Ciphertext,
+    pub contents: Ciphertext,
     hash: Vec<u8>,
 }
 
@@ -120,7 +95,7 @@ impl AuthCiphertext {
         let hash = Hasher::new()
             .update(&plaintext.as_bytes())
             .finish().as_ref().to_vec();
-        Self { ct: ct.clone(), hash }
+        Self { contents: ct.clone(), hash }
     }
 
     pub fn verify(&self, plaintext: &CurveElem) -> bool {
@@ -132,7 +107,7 @@ impl AuthCiphertext {
     }
 
     pub fn decrypt(&self, secret_key: &Scalar) -> Option<CurveElem> {
-        let plaintext = self.ct.decrypt(secret_key);
+        let plaintext = self.contents.decrypt(secret_key);
         if self.verify(&plaintext) {
             Some(plaintext)
         } else {
@@ -144,41 +119,12 @@ impl AuthCiphertext {
 impl Display for AuthCiphertext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})[{}]",
-               self.ct.c1.as_biguint().to_str_radix(36),
-               self.ct.c2.as_biguint().to_str_radix(36),
+               self.contents.c1.as_biguint().to_str_radix(36),
+               self.contents.c2.as_biguint().to_str_radix(36),
                base64::encode(&self.hash))
     }
 }
 
-pub struct Hasher(digest::Context);
-
-impl Hasher {
-    pub fn new() -> Self {
-        Self(digest::Context::new(&digest::SHA512))
-    }
-
-    pub fn update(mut self, data: &[u8]) -> Self {
-        self.0.update(&data);
-        self
-    }
-
-    pub fn finish(self) -> Digest {
-        self.0.finish()
-    }
-
-    pub fn finish_biguint(self) -> BigUint {
-        let bytes = self.finish();
-        BigUint::from_bytes_be(bytes.as_ref())
-    }
-
-    pub fn finish_scalar(self) -> Result<Scalar, CryptoError> {
-        curve::to_scalar(self.finish_biguint())
-            .map_err(|_| CryptoError::Misc)
-    }
-}
-
-
-pub type Digest = digest::Digest;
 pub type CurveElem = curve::CurveElem;
 
 #[derive(Debug)]
@@ -324,11 +270,11 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_dash = ctx.g_to(&r);
         let ct_modified = Ciphertext {
-            c1: ct.ct.c1,
-            c2: ct.ct.c2 + m_dash,
+            c1: ct.contents.c1,
+            c2: ct.contents.c2 + m_dash,
         };
         let auth_modified = AuthCiphertext {
-            ct: ct_modified.clone(),
+            contents: ct_modified.clone(),
             hash: ct.hash.clone(),
         };
 

@@ -5,8 +5,8 @@ use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{Scalar, CurveElem};
-use crate::elgamal::{Polynomial, CryptoContext, Ciphertext, CryptoError};
-use crate::zkp;
+use crate::elgamal::{Polynomial, CryptoContext, AuthCiphertext};
+use crate::{zkp, CryptoError};
 
 // Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
 // key generation and decryption protocol.
@@ -121,17 +121,19 @@ impl ThresholdContext {
     }
 
     // Returns this party's share of a decryption.
-    pub fn get_decrypt_share(&mut self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
+    pub fn get_decrypt_share(&mut self, ct: &AuthCiphertext) -> Result<DecryptShare, CryptoError> {
+        let c1 = ct.contents.c1;
         let s_i = self.get_secret_share();
         let y_i = self.get_pubkey_share();
+
         if let (Some(s_i), Some(y_i)) = (s_i, y_i) {
             let l_i = &s_i * lambda(self.n, self.id);
-            let a_i = ct.c1.scaled(&l_i);
+            let a_i = c1.scaled(&l_i);
             let g = self.ctx.generator();
             let proof = zkp::PrfEqDlogs::new(
                 &mut self.ctx,
                 &g,
-                &ct.c1,
+                &c1,
                 &y_i,
                 &a_i,
                 &l_i)?;
@@ -176,13 +178,13 @@ pub struct DecryptShare {
 pub struct Decryption {
     n: usize,
     ctx: CryptoContext,
-    ct: Ciphertext,
+    ct: AuthCiphertext,
     pubkeys: Vec<CurveElem>,
     a: Vec<DecryptShare>,
 }
 
 impl Decryption {
-    pub fn new(n: usize, ctx: &CryptoContext, ct: &Ciphertext) -> Self {
+    pub fn new(n: usize, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
         Self {
             n,
             ctx: ctx.cloned(),
@@ -209,7 +211,7 @@ impl Decryption {
                 // Verify the proof, and that the parameters are what they're supposed to be
                 Ok(proof.verify()?
                     && proof.f == self.ctx.generator()
-                    && proof.h == self.ct.c1
+                    && proof.h == self.ct.contents.c1
                     && proof.v == *y_i
                     && proof.w == share.a_i)
             })
@@ -218,12 +220,17 @@ impl Decryption {
         Ok(results.into_iter().all(identity))
     }
 
-    pub fn result(&self) -> Option<BigUint> {
+    pub fn result(&self) -> Result<BigUint, CryptoError> {
         if self.complete() {
             let a = self.a.iter().map(|share| share.a_i).sum();
-            Some((self.ct.c2 - a).decoded())
+            let plaintext = self.ct.contents.c2 - a;
+            if self.ct.verify(&plaintext) {
+                Ok(plaintext.decoded())
+            } else {
+                Err(CryptoError::AuthTagRejected)
+            }
         } else {
-            None
+            Err(CryptoError::KeygenMissing)
         }
     }
 }
@@ -308,7 +315,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
         let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r).unwrap();
+        let ct = pk.encrypt_auth(&ctx, &m, &r).unwrap();
 
         let mut decrypted = Decryption::new(parties.len(), &ctx, &ct);
         let shares: Vec<_> = parties.iter_mut()
