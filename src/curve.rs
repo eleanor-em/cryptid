@@ -147,11 +147,27 @@ impl TryFrom<BigUint> for CurveElem {
     }
 }
 
-impl TryFrom<i32> for CurveElem {
+impl TryFrom<&[u8]> for CurveElem {
     type Error = CurveError;
 
-    fn try_from(n: i32) -> Result<Self, CurveError> {
-        Self::try_from(BigUint::from(n as u64))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from(BigUint::from_bytes_be(value))
+    }
+}
+
+impl TryFrom<u32> for CurveElem {
+    type Error = CurveError;
+
+    fn try_from(n: u32) -> Result<Self, CurveError> {
+        Self::try_from(BigUint::from(n))
+    }
+}
+
+impl TryFrom<u64> for CurveElem {
+    type Error = CurveError;
+
+    fn try_from(n: u64) -> Result<Self, CurveError> {
+        Self::try_from(BigUint::from(n))
     }
 }
 
