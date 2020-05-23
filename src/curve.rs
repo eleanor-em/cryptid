@@ -13,12 +13,18 @@ use crate::elgamal::CryptoContext;
 const K: u32 = 12;
 
 pub fn scalar_max_size_bytes() -> usize {
-    32 as usize
+    ((252 - K) / 8) as usize
 }
 
-pub fn try_to_scalar(bytes: &[u8]) -> Result<Scalar, CryptoError> {
-    let bytes = <[u8; 32]>::try_from(bytes).map_err(|_| CryptoError::Decoding)?;
-    Ok(bytes.into())
+pub fn try_to_scalar(bytes: &Vec<u8>) -> Result<Scalar, CryptoError> {
+    if bytes.len() > 32 {
+        Err(CryptoError::Decoding)
+    } else {
+        let mut bytes = bytes.clone();
+        bytes.resize(32, 0);
+
+        Ok(<[u8; 32]>::try_from(bytes.as_ref()).unwrap().into())
+    }
 }
 
 pub fn to_scalar(s: BigUint) -> Scalar {
@@ -52,7 +58,7 @@ impl CurveElem {
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
         let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
-        if x.bits() > scalar_max_size_bytes() * 8 {
+        if x.bits() > scalar_max_size_bytes() * 8 + K as usize + 4 {
             Err(CryptoError::Decoding)
         } else {
             Ok(to_scalar(x))

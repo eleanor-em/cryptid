@@ -30,8 +30,8 @@ impl Scalar {
     }
 
     pub fn truncated(&self) -> Self {
-        let mut vec = s.0.as_bytes().to_vec();
-        vec.truncate((252 - K as usize) / 8);
+        let mut vec = self.0.as_bytes().to_vec();
+        vec.truncate(Scalar::max_size_bytes());
         to_scalar(BigUint::from_bytes_le(&vec))
     }
 }
@@ -116,11 +116,12 @@ pub mod threshold;
 mod tests {
     use crate::Hasher;
     use crate::curve::CurveElem;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_hash_encoding() {
         let msg = b"hello world";
         let scalar = Hasher::sha_256().update(msg).finish_scalar();
-        CurveElem::try_from_truncate(&scalar).unwrap();
+        CurveElem::try_from(scalar.truncated()).unwrap();
     }
 }
