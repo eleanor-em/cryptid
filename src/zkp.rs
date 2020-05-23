@@ -51,10 +51,10 @@ impl PrfKnowDlog {
 // TODO: this is a big-ass proof
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfEqDlogs {
-    v: CurveElem,
-    f: CurveElem,
-    w: CurveElem,
-    h: CurveElem,
+    pub v: CurveElem,
+    pub f: CurveElem,
+    pub w: CurveElem,
+    pub h: CurveElem,
     a: CurveElem,
     b: CurveElem,
     r: Scalar,

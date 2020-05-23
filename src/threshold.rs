@@ -7,6 +7,7 @@ use crate::elgamal::{Polynomial, KeyPair, CryptoContext, PublicKey, Ciphertext, 
 use crate::sign::{SigningKeyPair, SigningPubKey, Signature};
 use crate::curve::{Scalar, CurveElem};
 use crate::zkp;
+use std::convert::identity;
 
 pub struct ThresholdContext {
     ctx: CryptoContext,
@@ -85,8 +86,12 @@ impl ThresholdContext {
         }
     }
 
+    pub fn complete(&self) -> bool {
+        self.shares.len() == self.n as usize
+    }
+
     fn get_secret_share(&self) -> Option<Scalar> {
-        if self.shares.len() == self.n as usize {
+        if self.complete() {
             Some(self.shares.values().sum())
         } else {
             None
@@ -102,7 +107,8 @@ impl ThresholdContext {
         let s_i = self.get_secret_share();
         let y_i = self.get_pubkey_share();
         if let (Some(s_i), Some(y_i)) = (s_i, y_i) {
-            let a_i = ct.c1.scaled(&s_i);
+            let l_i = &s_i * lambda(self.n, self.id);
+            let a_i = ct.c1.scaled(&l_i);
             let g = self.ctx.generator();
             let proof = zkp::PrfEqDlogs::new(
                 &mut self.ctx,
@@ -110,7 +116,7 @@ impl ThresholdContext {
                 &ct.c1,
                 &y_i,
                 &a_i,
-                &s_i)?;
+                &l_i)?;
             Ok(DecryptShare { a_i, proof })
         } else {
             Err(CryptoError::KeygenMissing)
@@ -148,10 +154,66 @@ pub struct DecryptShare {
     proof: zkp::PrfEqDlogs,
 }
 
+#[derive(Debug)]
+pub struct Decryption {
+    n: usize,
+    ctx: CryptoContext,
+    ct: Ciphertext,
+    pubkeys: Vec<CurveElem>,
+    a: Vec<DecryptShare>,
+}
+
+impl Decryption {
+    pub fn new(n: usize, ctx: &CryptoContext, ct: &Ciphertext) -> Self {
+        Self {
+            n,
+            ctx: ctx.cloned(),
+            ct: ct.clone(),
+            pubkeys: Vec::new(),
+            a: Vec::new(),
+        }
+    }
+
+    pub fn complete(&self) -> bool {
+        self.a.len() == self.n
+    }
+
+    pub fn add_share(&mut self, share: &DecryptShare, pubkey: &CurveElem) {
+        self.a.push(share.clone());
+        self.pubkeys.push(pubkey.clone());
+    }
+
+    pub fn verify(&self) -> Result<bool, CryptoError> {
+        let results = self.a.iter().zip(&self.pubkeys)
+            .map(|(share, y_i)| {
+                let proof = &share.proof;
+
+                // Verify the proof, and that the parameters are what they're supposed to be
+                Ok(proof.verify()?
+                    && proof.f == self.ctx.generator()
+                    && proof.h == self.ct.c1
+                    && proof.v == *y_i
+                    && proof.w == share.a_i)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(results.into_iter().all(identity))
+    }
+
+    pub fn result(&self) -> Option<BigUint> {
+        if self.complete() {
+            let a = self.a.iter().map(|share| share.a_i).sum();
+            Some((self.ct.c2 - a).decoded())
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::threshold::ThresholdContext;
-    use crate::elgamal::{CryptoContext, CurveElem};
+    use crate::threshold::{ThresholdContext, Decryption};
+    use crate::elgamal::{CryptoContext, CurveElem, PublicKey};
     use std::collections::HashMap;
 
     fn generate_parties(ctx: &mut CryptoContext) -> Vec<ThresholdContext> {
@@ -210,5 +272,31 @@ mod test {
             .sum();
 
         assert_eq!(pubkey, y);
+    }
+
+    #[test]
+    fn test_decrypt() {
+        let mut ctx = CryptoContext::new();
+        let mut parties = generate_parties(&mut ctx);
+
+        let pks: Vec<_> = parties.iter()
+            .map(|p| p.get_pubkey_share().unwrap())
+            .collect();
+        let pk = PublicKey::new(pks.clone().into_iter().sum());
+
+        let r = ctx.random_power().unwrap();
+        let m_r = ctx.random_power().unwrap();
+        let m = ctx.g_to(&m_r);
+        let ct = pk.encrypt(&ctx, &m, &r).unwrap();
+
+        let mut decrypted = Decryption::new(parties.len(), &ctx, &ct);
+        let shares: Vec<_> = parties.iter_mut()
+            .map(|p| p.get_decrypt_share(&ct).unwrap())
+            .collect();
+        pks.iter().zip(&shares).for_each(|(pk, share)| decrypted.add_share(&share, &pk));
+
+        assert!(decrypted.verify().unwrap());
+        assert_eq!(decrypted.result().unwrap().to_str_radix(32),
+                   m.decoded().to_str_radix(32));
     }
 }

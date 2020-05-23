@@ -25,15 +25,6 @@ impl fmt::Display for CurveError {
 
 impl Error for CurveError {}
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
-pub struct CurveElem(RistrettoPoint);
-
-impl CurveElem {
-    pub fn identity() -> Self {
-        Self(RistrettoPoint::identity())
-    }
-}
-
 const K: u32 = 10;
 
 pub type Scalar = DalekScalar;
@@ -49,7 +40,14 @@ pub fn to_biguint(s: Scalar) -> BigUint {
     BigUint::from_bytes_le(s.as_bytes())
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+pub struct CurveElem(RistrettoPoint);
+
 impl CurveElem {
+    pub fn identity() -> Self {
+        Self(RistrettoPoint::identity())
+    }
+
     pub fn as_bytes(&self) -> [u8; 32] {
         *self.0.compress().as_bytes()
     }

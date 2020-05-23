@@ -77,13 +77,17 @@ impl Display for PublicKey {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ciphertext {
     pub c1: CurveElem,
     pub c2: CurveElem,
 }
 
 impl Ciphertext {
+    pub fn cloned(&self) -> Self {
+        Ciphertext { c1: self.c1, c2: self.c2 }
+    }
+
     pub fn add(&self, rhs: &Self) -> Self {
         Ciphertext {
             c1: &self.c1 + &rhs.c1,
