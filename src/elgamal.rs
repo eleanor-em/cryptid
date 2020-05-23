@@ -4,9 +4,8 @@ use std::sync::{Mutex, Arc};
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::{curve, CryptoError, Hasher, DalekScalar};
+use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
-use crate::curve::Polynomial;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -93,14 +92,14 @@ pub struct AuthCiphertext {
 
 impl AuthCiphertext {
     fn new(ct: &Ciphertext, plaintext: &CurveElem) -> Self {
-        let hash = Hasher::new()
+        let hash = Hasher::sha_512()
             .update(&plaintext.as_bytes())
             .finish().as_ref().to_vec();
         Self { contents: ct.clone(), hash }
     }
 
     pub fn verify(&self, plaintext: &CurveElem) -> bool {
-        let hash = Hasher::new()
+        let hash = Hasher::sha_512()
             .update(&plaintext.as_bytes())
             .finish().as_ref().to_vec();
 

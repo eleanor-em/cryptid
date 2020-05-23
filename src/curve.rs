@@ -10,13 +10,22 @@ use serde::{Serialize, Deserialize};
 use crate::{CryptoError, Scalar, DalekScalar};
 use crate::elgamal::CryptoContext;
 
-const K: u32 = 10;
+const K: u32 = 12;
 
-pub fn to_scalar(s: BigUint) -> Result<Scalar, CryptoError> {
+pub fn scalar_max_size_bytes() -> usize {
+    32 as usize
+}
+
+pub fn try_to_scalar(bytes: &[u8]) -> Result<Scalar, CryptoError> {
+    let bytes = <[u8; 32]>::try_from(bytes).map_err(|_| CryptoError::Decoding)?;
+    Ok(bytes.into())
+}
+
+pub fn to_scalar(s: BigUint) -> Scalar {
     let mut s = s.to_bytes_le();
     s.resize(32, 0);
-    let bytes = <[u8; 32]>::try_from(s.as_slice()).map_err(|_| CryptoError::Decoding)?;
-    Ok(bytes.into())
+    // Below should never fail
+    try_to_scalar(&s).unwrap()
 }
 
 pub fn to_biguint(s: Scalar) -> BigUint {
@@ -42,7 +51,12 @@ impl CurveElem {
 
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
-        to_scalar(BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K))
+        let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
+        if x.bits() > scalar_max_size_bytes() * 8 {
+            Err(CryptoError::Decoding)
+        } else {
+            Ok(to_scalar(x))
+        }
     }
 
     pub fn scaled(&self, other: &Scalar) -> Self {
@@ -124,7 +138,7 @@ impl TryFrom<BigUint> for CurveElem {
     type Error = CryptoError;
 
     fn try_from(n: BigUint) -> Result<Self, CryptoError> {
-        to_scalar(n).and_then(|s| Self::try_from(s))
+        Self::try_from(to_scalar(n))
     }
 }
 
@@ -200,7 +214,7 @@ mod tests {
         let mut ctx = elgamal::CryptoContext::new();
         for _ in 0..10 {
             let s = ctx.random_power().unwrap();
-            assert_eq!(s, curve::to_scalar(curve::to_biguint(s)).unwrap());
+            assert_eq!(s, curve::to_scalar(curve::to_biguint(s)));
         }
     }
 }

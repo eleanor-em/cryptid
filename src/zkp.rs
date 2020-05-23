@@ -13,8 +13,8 @@ pub struct PrfKnowDlog {
 }
 
 impl PrfKnowDlog {
-    fn challenge(g: &CurveElem, y: &CurveElem, a: &CurveElem) -> Result<Scalar, CryptoError> {
-        Hasher::new()
+    fn challenge(g: &CurveElem, y: &CurveElem, a: &CurveElem) -> Scalar {
+        Hasher::sha_256()
             .update(&g.as_bytes())
             .update(&y.as_bytes())
             .update(&a.as_bytes())
@@ -27,7 +27,7 @@ impl PrfKnowDlog {
         let z = ctx.random_power()?;
         let a = g.scaled(&z);
         // Calculate the challenge
-        let c = Self::challenge(g, y, &a)?;
+        let c = Self::challenge(g, y, &a);
         let r = Scalar(z.0 + c.0 * x.0);
 
         Ok(Self {
@@ -39,7 +39,7 @@ impl PrfKnowDlog {
     }
 
     pub fn verify(&self) -> Result<bool, CryptoError> {
-        let c = Self::challenge(&self.g, &self.y, &self.a)?;
+        let c = Self::challenge(&self.g, &self.y, &self.a);
         Ok(self.g.scaled(&self.r) == &self.a + &self.y.scaled(&c))
     }
 }
@@ -62,8 +62,8 @@ impl PrfEqDlogs {
                  v: &CurveElem,
                  w: &CurveElem,
                  a: &CurveElem,
-                 b: &CurveElem) -> Result<Scalar, CryptoError> {
-        Hasher::new()
+                 b: &CurveElem) -> Scalar {
+        Hasher::sha_256()
             .update(&f.as_bytes())
             .update(&h.as_bytes())
             .update(&v.as_bytes())
@@ -83,7 +83,7 @@ impl PrfEqDlogs {
         let z = ctx.random_power()?;
         let a = f.scaled(&z);
         let b = h.scaled(&z);
-        let c = Self::challenge(&f, &h, &v, &w, &a, &b)?;
+        let c = Self::challenge(&f, &h, &v, &w, &a, &b);
         let r = Scalar(z.0 + c.0 * x.0);
         Ok(Self {
             v: v.clone(),
@@ -97,7 +97,7 @@ impl PrfEqDlogs {
     }
 
     pub fn verify(&self) -> Result<bool, CryptoError> {
-        let c = Self::challenge(&self.f, &self.h, &self.v, &self.w, &self.a, &self.b)?;
+        let c = Self::challenge(&self.f, &self.h, &self.v, &self.w, &self.a, &self.b);
         Ok(self.f.scaled(&self.r) == &self.a + &self.v.scaled(&c)
             && self.h.scaled(&self.r) == &self.b + &self.w.scaled(&c))
     }

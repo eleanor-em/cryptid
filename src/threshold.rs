@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::convert::identity;
 
-use num_bigint::BigUint;
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{ CurveElem, Polynomial };
@@ -145,20 +144,21 @@ impl ThresholdContext {
         }
     }
 
-    pub fn get_id(&self) -> usize {
-        self.id as usize
+    pub fn get_id(&self) -> u32 {
+        self.id
     }
 
-    pub fn get_k(&self) -> usize {
-        self.k as usize
+    pub fn get_k(&self) -> u32 {
+        self.k
     }
 
-    pub fn get_n(&self) -> usize {
-        self.n as usize
+    pub fn get_n(&self) -> u32 {
+        self.n
     }
 }
 
 // Lagrange coefficient calculation
+// TODO: this needs to be extended for the case where < n agree
 fn lambda(n: u32, j: u32) -> DalekScalar {
     // let mut prod = 1.0;
     let mut numerator = 1;
@@ -190,7 +190,7 @@ pub struct DecryptShare {
 
 #[derive(Debug)]
 pub struct Decryption {
-    n: usize,
+    k: u32,
     ctx: CryptoContext,
     ct: AuthCiphertext,
     pubkeys: Vec<CurveElem>,
@@ -198,9 +198,9 @@ pub struct Decryption {
 }
 
 impl Decryption {
-    pub fn new(n: usize, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
+    pub fn new(k: u32, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
         Self {
-            n,
+            k,
             ctx: ctx.cloned(),
             ct: ct.clone(),
             pubkeys: Vec::new(),
@@ -209,7 +209,7 @@ impl Decryption {
     }
 
     pub fn complete(&self) -> bool {
-        self.a.len() == self.n
+        self.a.len() as u32 >= self.k
     }
 
     pub fn add_share(&mut self, share: &DecryptShare, pubkey: &CurveElem) {
@@ -331,7 +331,7 @@ mod test {
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt_auth(&ctx, &m, &r);
 
-        let mut decrypted = Decryption::new(parties.len(), &ctx, &ct);
+        let mut decrypted = Decryption::new(parties.first().unwrap().k, &ctx, &ct);
         let shares: Vec<_> = parties.iter_mut()
             .map(|p| p.get_decrypt_share(&ct).unwrap())
             .collect();
@@ -340,4 +340,32 @@ mod test {
         assert!(decrypted.verify().unwrap());
         assert_eq!(decrypted.result().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
+
+    // #[test]
+    // fn test_decrypt_partial() {
+    //     let mut ctx = CryptoContext::new();
+    //     let mut parties = generate_parties(&mut ctx);
+    //
+    //     let pks: Vec<_> = parties.iter()
+    //         .map(|p| p.get_pubkey_share().unwrap())
+    //         .collect();
+    //     let pk = PublicKey::new(pks.clone().into_iter().sum());
+    //
+    //     let r = ctx.random_power().unwrap();
+    //     let m_r = ctx.random_power().unwrap();
+    //     let m = ctx.g_to(&m_r);
+    //     let ct = pk.encrypt_auth(&ctx, &m, &r);
+    //
+    //     let k = parties.first().unwrap().k;
+    //     parties.truncate((k + 1) as usize);
+    //
+    //     let mut decrypted = Decryption::new(k, &ctx, &ct);
+    //     let shares: Vec<_> = parties.iter_mut()
+    //         .map(|p| p.get_decrypt_share(&ct).unwrap())
+    //         .collect();
+    //     pks.iter().zip(&shares).for_each(|(pk, share)| decrypted.add_share(&share, &pk));
+    //
+    //     assert!(decrypted.verify().unwrap());
+    //     assert_eq!(decrypted.result().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+    // }
 }

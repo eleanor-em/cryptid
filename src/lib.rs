@@ -2,13 +2,8 @@ use std::fmt::{Display, Formatter};
 use std::error::Error;
 
 use ring::digest;
-use num_bigint::BigUint;
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use serde::{Serialize, Deserialize};
-use std::convert::TryFrom;
-use std::ops::{Mul, Add, AddAssign, Sub};
-use std::iter::Sum;
-use curve25519_dalek::ristretto::RistrettoPoint;
 
 type DalekScalar = InternalDalekScalar;
 
@@ -28,12 +23,8 @@ impl Scalar {
         self.0.to_bytes()
     }
 
-    fn zero() -> Self {
-        Self(DalekScalar::zero())
-    }
-
-    fn one() -> Self {
-        Self(DalekScalar::one())
+    pub fn max_size_bytes() -> usize {
+        curve::scalar_max_size_bytes()
     }
 }
 
@@ -52,7 +43,11 @@ impl From<[u8; 32]> for Scalar {
 pub struct Hasher(digest::Context);
 
 impl Hasher {
-    pub fn new() -> Self {
+    pub fn sha_256() -> Self {
+        Self(digest::Context::new(&digest::SHA256))
+    }
+
+    pub fn sha_512() -> Self {
         Self(digest::Context::new(&digest::SHA512))
     }
 
@@ -65,9 +60,11 @@ impl Hasher {
         self.0.finish()
     }
 
-    pub fn finish_scalar(self) -> Result<Scalar, CryptoError> {
-        curve::to_scalar(BigUint::from_bytes_be(self.finish().as_ref()))
-            .map_err(|_| CryptoError::Misc)
+    // NOTE: this will truncate the bytes of the hash. Use with care.
+    pub fn finish_scalar(self) -> Scalar {
+        let mut bytes = self.finish_vec();
+        bytes.truncate(Scalar::max_size_bytes());
+        curve::try_to_scalar(&bytes).unwrap()
     }
 
     pub fn finish_vec(self) -> Vec<u8> {
