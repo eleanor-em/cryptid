@@ -182,6 +182,16 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
+    pub fn cloned(&self) -> Self {
+        Self {
+            k: self.k,
+            n: self.n,
+            x_i: self.x_i.clone(),
+            ctx: self.ctx.cloned(),
+            coefficients: self.coefficients.clone(),
+        }
+    }
+    
     pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
         let mut ctx = ctx.cloned();
         let x_i = ctx.random_power()?;

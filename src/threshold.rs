@@ -7,6 +7,14 @@ use crate::curve::{ CurveElem, Polynomial };
 use crate::elgamal::{CryptoContext, AuthCiphertext, PublicKey};
 use crate::{zkp, CryptoError, Scalar, DalekScalar};
 
+pub trait Threshold {
+    type Error;
+    type Destination;
+
+    fn is_complete(&self) -> bool;
+    fn finish(&self) -> Result<Self::Destination, Self::Error>;
+}
+
 // Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
 // key generation and decryption protocol.
 //
@@ -23,6 +31,19 @@ pub struct ThresholdGenerator {
 }
 
 impl ThresholdGenerator {
+    pub fn cloned(&self) -> Self {
+        Self {
+            ctx: self.ctx.cloned(),
+            id: self.id,
+            k: self.k,
+            n: self.n,
+            polynomial: self.polynomial.cloned(),
+            shares: self.shares.clone(),
+            commitments: self.commitments.clone(),
+            pk_parts: self.pk_parts.clone(),
+        }
+    }
+
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
@@ -104,28 +125,6 @@ impl ThresholdGenerator {
         }
     }
 
-    // Returns a completed object if the key generation is done, otherwise None.
-    pub fn complete(&self) -> Option<ThresholdParty> {
-        if self.shares.len() == self.n as usize {
-            let s_i = Scalar(self.shares.values().sum());
-            let h_i = self.ctx.g_to(&s_i);
-
-            let pubkey = self.pk_parts.clone().into_iter().sum();
-
-            Some(ThresholdParty {
-                ctx: self.ctx.cloned(),
-                id: self.id,
-                k: self.k,
-                n: self.n,
-                s_i,
-                h_i,
-                pubkey,
-            })
-        } else {
-            None
-        }
-    }
-
     pub fn id(&self) -> u32 {
         self.id
     }
@@ -136,6 +135,38 @@ impl ThresholdGenerator {
 
     pub fn n(&self) -> u32 {
         self.n
+    }
+}
+
+impl Threshold for ThresholdGenerator {
+    type Error = CryptoError;
+    type Destination = ThresholdParty;
+
+
+    fn is_complete(&self) -> bool {
+        self.shares.len() == self.n as usize
+    }
+
+    // Returns a completed object if the key generation is done, otherwise None.
+    fn finish(&self) -> Result<ThresholdParty, CryptoError> {
+        if self.is_complete() {
+            let s_i = Scalar(self.shares.values().sum());
+            let h_i = self.ctx.g_to(&s_i);
+
+            let pubkey = self.pk_parts.clone().into_iter().sum();
+
+            Ok(ThresholdParty {
+                ctx: self.ctx.cloned(),
+                id: self.id,
+                k: self.k,
+                n: self.n,
+                s_i,
+                h_i,
+                pubkey,
+            })
+        } else {
+            Err(CryptoError::KeygenMissing)
+        }
     }
 }
 
@@ -239,16 +270,12 @@ impl Decryption {
         }
     }
 
-    pub fn complete(&self) -> bool {
-        self.a.len() as u32 >= self.k
-    }
-
     pub fn add_share(&mut self, party: &ThresholdParty, share: &DecryptShare){
         self.a.insert(party.id, share.clone());
         self.pubkeys.insert(party.id, party.h_i.clone());
     }
 
-    pub fn verify(&self) -> Result<bool, CryptoError> {
+    fn verify(&self) -> Result<bool, CryptoError> {
         let results = self.a.keys()
             .map(|id| (&self.a[id], &self.pubkeys[id]))
             .map(|(share, h_i)| {
@@ -263,24 +290,37 @@ impl Decryption {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(self.complete() && results.into_iter().all(identity))
+        Ok(self.is_complete() && results.into_iter().all(identity))
+    }
+}
+
+impl Threshold for Decryption {
+    type Error = CryptoError;
+    type Destination = Scalar;
+
+    fn is_complete(&self) -> bool {
+        self.a.len() as u32 >= self.k
     }
 
-    pub fn result(&self) -> Result<Scalar, CryptoError> {
-        if self.complete() {
-            let a = self.a.keys()
-                .map(|id| (id, &self.a[id]))
-                .map(|(id, share)| {
-                    let participants = self.a.keys().map(|&id| id);
-                    let l_i = Scalar(lambda(participants, *id));
-                    share.a_i.scaled(&l_i)
-                })
-                .sum();
-            let plaintext = self.ct.contents.c2 - a;
-            if self.ct.verify(&plaintext) {
-                plaintext.decoded()
+    fn finish(&self) -> Result<Scalar, CryptoError> {
+        if self.is_complete() {
+            if self.verify()? {
+                let a = self.a.keys()
+                    .map(|id| (id, &self.a[id]))
+                    .map(|(id, share)| {
+                        let participants = self.a.keys().map(|&id| id);
+                        let l_i = Scalar(lambda(participants, *id));
+                        share.a_i.scaled(&l_i)
+                    })
+                    .sum();
+                let plaintext = self.ct.contents.c2 - a;
+                if self.ct.verify(&plaintext) {
+                    plaintext.decoded()
+                } else {
+                    Err(CryptoError::AuthTagRejected)
+                }
             } else {
-                Err(CryptoError::AuthTagRejected)
+                Err(CryptoError::ShareRejected)
             }
         } else {
             Err(CryptoError::KeygenMissing)
@@ -290,7 +330,7 @@ impl Decryption {
 
 #[cfg(test)]
 mod test {
-    use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty};
+    use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty, Threshold};
     use crate::elgamal::{CryptoContext, CurveElem};
     use std::collections::HashMap;
 
@@ -341,7 +381,7 @@ mod test {
 
     fn complete_parties(generators: Vec<ThresholdGenerator>) -> Vec<ThresholdParty> {
         generators.iter()
-            .map(|p| p.complete().unwrap())
+            .map(|p| p.finish().unwrap())
             .collect()
     }
 
@@ -389,7 +429,7 @@ mod test {
             });
 
         assert!(decrypted.verify().unwrap());
-        assert_eq!(decrypted.result().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
     #[test]
@@ -414,7 +454,7 @@ mod test {
             });
 
         assert!(decrypted.verify().unwrap());
-        assert_eq!(decrypted.result().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
     #[test]
@@ -439,6 +479,6 @@ mod test {
             });
 
         assert!(!decrypted.verify().unwrap());
-        assert!(decrypted.result().is_err())
+        assert!(decrypted.finish().is_err())
     }
 }
