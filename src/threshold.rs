@@ -4,7 +4,7 @@ use std::convert::identity;
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{ CurveElem, Polynomial };
-use crate::elgamal::{ CryptoContext, AuthCiphertext};
+use crate::elgamal::{CryptoContext, AuthCiphertext, PublicKey};
 use crate::{zkp, CryptoError, Scalar, DalekScalar};
 
 // Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
@@ -19,6 +19,7 @@ pub struct ThresholdGenerator {
     polynomial: Polynomial,
     shares: HashMap<u32, DalekScalar>,
     commitments: HashMap<u32, Vec<CurveElem>>,
+    pk_parts: Vec<CurveElem>,
 }
 
 impl ThresholdGenerator {
@@ -36,8 +37,9 @@ impl ThresholdGenerator {
 
             let shares = HashMap::new();
             let commitments = HashMap::new();
+            let pk_parts = Vec::new();
 
-            Ok(Self { ctx, id, polynomial: f_i, k, n, shares, commitments })
+            Ok(Self { ctx, id, polynomial: f_i, k, n, shares, commitments, pk_parts })
         } else {
             Err(CryptoError::InvalidId)
         }
@@ -74,6 +76,7 @@ impl ThresholdGenerator {
     // Receives a share from a particular party.
     pub fn receive_share(&mut self, sender_id: u32, share: &Scalar) -> Result<(), CryptoError> {
         if sender_id > 0 && sender_id <= self.n {
+            // Check what the commitment is meant to be
             let lhs = self.ctx.g_to(share);
             let commitment = self.commitments.get(&sender_id)
                 .ok_or(CryptoError::CommitmentMissing)?;
@@ -84,10 +87,11 @@ impl ThresholdGenerator {
                 let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
                 Ok(base.scaled(&power))
             }).collect::<Result<Vec<_>, _>>()?;
-
             let rhs = rhs.into_iter().sum();
+
             if lhs == rhs {
                 if self.shares.insert(sender_id, share.0.clone()).is_none() {
+                    self.pk_parts.push(commitment[0]);
                     Ok(())
                 } else {
                     Err(CryptoError::ShareDuplicated)
@@ -106,6 +110,8 @@ impl ThresholdGenerator {
             let s_i = Scalar(self.shares.values().sum());
             let h_i = self.ctx.g_to(&s_i);
 
+            let pubkey = self.pk_parts.clone().into_iter().sum();
+
             Some(ThresholdParty {
                 ctx: self.ctx.cloned(),
                 id: self.id,
@@ -113,6 +119,7 @@ impl ThresholdGenerator {
                 n: self.n,
                 s_i,
                 h_i,
+                pubkey,
             })
         } else {
             None
@@ -139,16 +146,21 @@ pub struct ThresholdParty {
     n: u32,
     s_i: Scalar,
     h_i: CurveElem,
+    pubkey: CurveElem,
 }
 
 impl ThresholdParty {
+    pub fn pubkey(&self) -> PublicKey {
+        PublicKey::new(self.pubkey)
+    }
+
     // Returns this party's share of the public key.
     pub fn pubkey_share(&self) -> CurveElem {
         self.h_i.scaled(&Scalar(lambda(1..self.n + 1, self.id)))
     }
 
     // Returns this party's share of a decryption.
-    pub fn get_decrypt_share(&mut self, ct: &AuthCiphertext) -> Result<DecryptShare, CryptoError> {
+    pub fn decrypt_share(&mut self, ct: &AuthCiphertext) -> Result<DecryptShare, CryptoError> {
         let c1 = ct.contents.c1;
 
         let a_i = c1.scaled(&self.s_i);
@@ -165,15 +177,15 @@ impl ThresholdParty {
         Ok(DecryptShare { a_i, proof })
     }
 
-    pub fn get_id(&self) -> u32 {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
-    pub fn get_k(&self) -> u32 {
+    pub fn k(&self) -> u32 {
         self.k
     }
 
-    pub fn get_n(&self) -> u32 {
+    pub fn n(&self) -> u32 {
         self.n
     }
 }
@@ -279,7 +291,7 @@ impl Decryption {
 #[cfg(test)]
 mod test {
     use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty};
-    use crate::elgamal::{CryptoContext, CurveElem, PublicKey};
+    use crate::elgamal::{CryptoContext, CurveElem};
     use std::collections::HashMap;
 
     fn run_generation(ctx: &mut CryptoContext) -> Vec<ThresholdGenerator> {
@@ -352,20 +364,16 @@ mod test {
             .sum();
 
         assert_eq!(pubkey, y);
+        parties.iter().for_each(|party| {
+            assert_eq!(pubkey.as_base64(), party.pubkey.as_base64());
+        });
     }
 
     #[test]
     fn test_decrypt() {
         let mut ctx = CryptoContext::new();
         let mut parties = get_parties(&mut ctx);
-
-        let pks: Vec<_> = parties.iter()
-            .map(|p| (p.get_id(), p.pubkey_share()))
-            .collect();
-        let pk = PublicKey::new(pks.clone()
-            .into_iter()
-            .map(|(_, pk)| pk)
-            .sum());
+        let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
@@ -376,7 +384,7 @@ mod test {
 
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.get_decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct).unwrap();
                 decrypted.add_share(&party, &share);
             });
 
@@ -388,11 +396,7 @@ mod test {
     fn test_decrypt_partial() {
         let mut ctx = CryptoContext::new();
         let mut parties = get_parties(&mut ctx);
-
-        let pks: Vec<_> = parties.iter()
-            .map(|p| p.pubkey_share())
-            .collect();
-        let pk = PublicKey::new(pks.clone().into_iter().sum());
+        let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
@@ -405,7 +409,7 @@ mod test {
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.get_decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct).unwrap();
                 decrypted.add_share(&party, &share);
             });
 
@@ -417,11 +421,7 @@ mod test {
     fn test_decrypt_not_enough() {
         let mut ctx = CryptoContext::new();
         let mut parties = get_parties(&mut ctx);
-
-        let pks: Vec<_> = parties.iter()
-            .map(|p| p.pubkey_share())
-            .collect();
-        let pk = PublicKey::new(pks.clone().into_iter().sum());
+        let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
@@ -434,7 +434,7 @@ mod test {
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.get_decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct).unwrap();
                 decrypted.add_share(&party, &share);
             });
 
