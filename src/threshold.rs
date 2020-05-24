@@ -104,7 +104,7 @@ impl ThresholdGenerator {
         }
     }
 
-    // Returns true if the key has been fully generated.
+    // Returns a completed object if the key generation is done, otherwise None.
     pub fn complete(&self) -> Option<ThresholdParty> {
         if self.shares.len() == self.n as usize {
             let s_i = Scalar(self.shares.values().sum());
@@ -126,15 +126,15 @@ impl ThresholdGenerator {
         }
     }
 
-    pub fn get_id(&self) -> u32 {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
-    pub fn get_k(&self) -> u32 {
+    pub fn k(&self) -> u32 {
         self.k
     }
 
-    pub fn get_n(&self) -> u32 {
+    pub fn n(&self) -> u32 {
         self.n
     }
 }
