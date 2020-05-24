@@ -31,19 +31,6 @@ pub struct ThresholdGenerator {
 }
 
 impl ThresholdGenerator {
-    pub fn cloned(&self) -> Self {
-        Self {
-            ctx: self.ctx.cloned(),
-            id: self.id,
-            k: self.k,
-            n: self.n,
-            polynomial: self.polynomial.cloned(),
-            shares: self.shares.clone(),
-            commitments: self.commitments.clone(),
-            pk_parts: self.pk_parts.clone(),
-        }
-    }
-
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
@@ -142,7 +129,6 @@ impl Threshold for ThresholdGenerator {
     type Error = CryptoError;
     type Destination = ThresholdParty;
 
-
     fn is_complete(&self) -> bool {
         self.shares.len() == self.n as usize
     }
@@ -153,7 +139,7 @@ impl Threshold for ThresholdGenerator {
             let s_i = Scalar(self.shares.values().sum());
             let h_i = self.ctx.g_to(&s_i);
 
-            let pubkey = self.pk_parts.clone().into_iter().sum();
+            let pubkey = PublicKey::new(self.pk_parts.clone().into_iter().sum());
 
             Ok(ThresholdParty {
                 ctx: self.ctx.cloned(),
@@ -177,12 +163,24 @@ pub struct ThresholdParty {
     n: u32,
     s_i: Scalar,
     h_i: CurveElem,
-    pubkey: CurveElem,
+    pubkey: PublicKey,
 }
 
 impl ThresholdParty {
+    pub fn cloned(&self) -> Self {
+        Self {
+            ctx: self.ctx.cloned(),
+            id: self.id,
+            k: self.k,
+            n: self.n,
+            s_i: self.s_i.clone(),
+            h_i: self.h_i.clone(),
+            pubkey: self.pubkey.clone(),
+        }
+    }
+
     pub fn pubkey(&self) -> PublicKey {
-        PublicKey::new(self.pubkey)
+        self.pubkey
     }
 
     // Returns this party's share of the public key.
@@ -395,7 +393,9 @@ mod test {
         let generators = run_generation(&mut ctx);
 
         // Store the intended public key
-        let pubkey: CurveElem = generators.iter().map(|party| party.polynomial.get_pubkey_share()).sum();
+        let pubkey: CurveElem = generators.iter().map(|party| {
+            ctx.g_to(&party.polynomial.x_i)
+        }).sum();
         let parties = complete_parties(generators);
 
         // Compute the final public key

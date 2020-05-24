@@ -176,22 +176,12 @@ impl TryFrom<u64> for CurveElem {
 pub struct Polynomial {
     k: usize,
     n: usize,
-    x_i: Scalar,
+    pub x_i: Scalar,
     ctx: CryptoContext,
     coefficients: Vec<DalekScalar>,
 }
 
 impl Polynomial {
-    pub fn cloned(&self) -> Self {
-        Self {
-            k: self.k,
-            n: self.n,
-            x_i: self.x_i.clone(),
-            ctx: self.ctx.cloned(),
-            coefficients: self.coefficients.clone(),
-        }
-    }
-    
     pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
         let mut ctx = ctx.cloned();
         let x_i = ctx.random_power()?;
@@ -202,10 +192,6 @@ impl Polynomial {
         }
 
         Ok(Polynomial { k, n, x_i, ctx, coefficients })
-    }
-
-    pub fn get_pubkey_share(&self) -> CurveElem {
-        self.ctx.g_to(&self.x_i)
     }
 
     pub fn get_public_params(&self) -> Vec<CurveElem> {

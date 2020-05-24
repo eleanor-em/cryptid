@@ -49,6 +49,10 @@ impl PublicKey {
         let c2 = &ct.c2 + &self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
+
+    pub fn as_base64(&self) -> String {
+        self.y.as_base64()
+    }
 }
 
 impl Display for PublicKey {
