@@ -183,6 +183,11 @@ impl ThresholdParty {
         self.pubkey
     }
 
+    // Returns this party's share of the public key, but unscaled so it can be used for proofs.
+    pub fn pubkey_proof(&self) -> CurveElem {
+        self.h_i
+    }
+
     // Returns this party's share of the public key.
     pub fn pubkey_share(&self) -> CurveElem {
         self.h_i.scaled(&Scalar(lambda(1..self.n + 1, self.id)))
@@ -268,9 +273,9 @@ impl Decryption {
         }
     }
 
-    pub fn add_share(&mut self, party: &ThresholdParty, share: &DecryptShare){
-        self.a.insert(party.id, share.clone());
-        self.pubkeys.insert(party.id, party.h_i.clone());
+    pub fn add_share(&mut self, party_id: u32, party_pubkey_share: &CurveElem, share: &DecryptShare){
+        self.a.insert(party_id, share.clone());
+        self.pubkeys.insert(party_id, party_pubkey_share.clone());
     }
 
     fn verify(&self) -> Result<bool, CryptoError> {
@@ -425,7 +430,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct).unwrap();
-                decrypted.add_share(&party, &share);
+                decrypted.add_share(party.id, &party.h_i, &share);
             });
 
         assert!(decrypted.verify().unwrap());
@@ -450,7 +455,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct).unwrap();
-                decrypted.add_share(&party, &share);
+                decrypted.add_share(party.id, &party.h_i, &share);
             });
 
         assert!(decrypted.verify().unwrap());
@@ -475,7 +480,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct).unwrap();
-                decrypted.add_share(&party, &share);
+                decrypted.add_share(party.id, &party.h_i, &share);
             });
 
         assert!(!decrypted.verify().unwrap());
