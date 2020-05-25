@@ -110,16 +110,6 @@ mod tests {
     use crate::{DalekScalar, Scalar};
 
     #[test]
-    fn test_exp_sane() {
-        let mut ctx = CryptoContext::new();
-        let a = ctx.random_power().unwrap();
-
-        let x = ctx.g_to(&a);
-        let y = ctx.g_to(&a);
-        assert_eq!(x, y);
-    }
-
-    #[test]
     fn test_exp_sum() {
         let mut ctx = CryptoContext::new();
         let a = ctx.random_power().unwrap();

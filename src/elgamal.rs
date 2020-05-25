@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
+use std::hash::Hash;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -52,6 +53,12 @@ impl PublicKey {
 
     pub fn as_base64(&self) -> String {
         self.y.as_base64()
+    }
+}
+
+impl Hash for PublicKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_base64().hash(state);
     }
 }
 
