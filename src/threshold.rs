@@ -59,7 +59,13 @@ impl ThresholdGenerator {
     }
 
     // Returns the polynomial secret share for the given id -- not to be shared publicly.
+    //
+    // This should only be called AFTER commitments are ready to prevent Byzantine attacks.
     pub fn get_polynomial_share(&self, id: u32) -> Result<Scalar, CryptoError> {
+        if !self.received_commitments() {
+            return Err(CryptoError::CommitmentMissing);
+        }
+
         if id > 0 && id <= self.n {
             Ok(self.polynomial.evaluate(id))
         } else {
@@ -81,34 +87,41 @@ impl ThresholdGenerator {
         }
     }
 
+    pub fn received_commitments(&self) -> bool {
+        self.commitments.len()() == self.n
+    }
+
     // Receives a share from a particular party.
     pub fn receive_share(&mut self, sender_id: u32, share: &Scalar) -> Result<(), CryptoError> {
-        if sender_id > 0 && sender_id <= self.n {
-            // Check what the commitment is meant to be
-            let lhs = self.ctx.g_to(share);
-            let commitment = self.commitments.get(&sender_id)
-                .ok_or(CryptoError::CommitmentMissing)?;
+        if !self.received_commitments() {
+            return Err(CryptoError::CommitmentMissing);
+        }
+        if sender_id == 0 || sender_id > self.n {
+            return Err(CryptoError::InvalidId);
+        }
 
-            // Verify the commitment
-            let rhs = (0..self.k).map(|l| {
-                let power = Scalar::from(self.id.pow(l));
-                let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
-                Ok(base.scaled(&power))
-            }).collect::<Result<Vec<_>, _>>()?;
-            let rhs = rhs.into_iter().sum();
+        // Check what the commitment is meant to be
+        let lhs = self.ctx.g_to(share);
+        let commitment = self.commitments.get(&sender_id).unwrap();
 
-            if lhs == rhs {
-                if self.shares.insert(sender_id, share.0.clone()).is_none() {
-                    self.pk_parts.push(commitment[0]);
-                    Ok(())
-                } else {
-                    Err(CryptoError::ShareDuplicated)
-                }
+        // Verify the commitment
+        let rhs = (0..self.k).map(|l| {
+            let power = Scalar::from(self.id.pow(l));
+            let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
+            Ok(base.scaled(&power))
+        }).collect::<Result<Vec<_>, _>>()?;
+        let rhs = rhs.into_iter().sum();
+
+        if lhs == rhs {
+            if self.shares.insert(sender_id, share.0.clone()).is_none() {
+                // First part of the commitment is a public key share
+                self.pk_parts.push(commitment[0]);
+                Ok(())
             } else {
-                Err(CryptoError::ShareRejected)
+                Err(CryptoError::ShareDuplicated)
             }
         } else {
-            Err(CryptoError::InvalidId)
+            Err(CryptoError::ShareRejected)
         }
     }
 
