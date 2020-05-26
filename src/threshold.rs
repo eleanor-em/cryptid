@@ -21,12 +21,12 @@ pub trait Threshold {
 // See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
 pub struct ThresholdGenerator {
     ctx: CryptoContext,
-    id: u32,
-    k: u32,
-    n: u32,
+    id: usize,
+    k: usize,
+    n: usize,
     polynomial: Polynomial,
-    shares: HashMap<u32, DalekScalar>,
-    commitments: HashMap<u32, Vec<CurveElem>>,
+    shares: HashMap<usize, DalekScalar>,
+    commitments: HashMap<usize, Vec<CurveElem>>,
     pk_parts: Vec<CurveElem>,
 }
 
@@ -39,9 +39,9 @@ impl ThresholdGenerator {
         if id > 0 && id <= n {
             let mut ctx = ctx.cloned();
             let f_i = Polynomial::random(&mut ctx, k, n)?;
-            let id = id as u32;
-            let k = k as u32;
-            let n = n as u32;
+            let id = id as usize;
+            let k = k as usize;
+            let n = n as usize;
 
             let shares = HashMap::new();
             let commitments = HashMap::new();
@@ -61,20 +61,20 @@ impl ThresholdGenerator {
     // Returns the polynomial secret share for the given id -- not to be shared publicly.
     //
     // This should only be called AFTER commitments are ready to prevent Byzantine attacks.
-    pub fn get_polynomial_share(&self, id: u32) -> Result<Scalar, CryptoError> {
+    pub fn get_polynomial_share(&self, id: usize) -> Result<Scalar, CryptoError> {
         if !self.received_commitments() {
             return Err(CryptoError::CommitmentMissing);
         }
 
         if id > 0 && id <= self.n {
-            Ok(self.polynomial.evaluate(id))
+            Ok(self.polynomial.evaluate(id as u32))
         } else {
             Err(CryptoError::InvalidId)
         }
     }
 
     // Receives a commitment from a particular party.
-    pub fn receive_commitment(&mut self, sender_id: u32, commitment: &Vec<CurveElem>)
+    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &Vec<CurveElem>)
                               -> Result<(), CryptoError>{
         if sender_id > 0 && sender_id <= self.n {
             if self.commitments.insert(sender_id, commitment.clone()).is_none() {
@@ -88,11 +88,11 @@ impl ThresholdGenerator {
     }
 
     pub fn received_commitments(&self) -> bool {
-        self.commitments.len()() == self.n
+        self.commitments.len() == self.n as usize
     }
 
     // Receives a share from a particular party.
-    pub fn receive_share(&mut self, sender_id: u32, share: &Scalar) -> Result<(), CryptoError> {
+    pub fn receive_share(&mut self, sender_id: usize, share: &Scalar) -> Result<(), CryptoError> {
         if !self.received_commitments() {
             return Err(CryptoError::CommitmentMissing);
         }
@@ -106,8 +106,8 @@ impl ThresholdGenerator {
 
         // Verify the commitment
         let rhs = (0..self.k).map(|l| {
-            let power = Scalar::from(self.id.pow(l));
-            let base = commitment.get(l as usize).ok_or(CryptoError::CommitmentPartMissing)?;
+            let power = Scalar::from((self.id as u32).pow(l as u32));
+            let base = commitment.get(l).ok_or(CryptoError::CommitmentPartMissing)?;
             Ok(base.scaled(&power))
         }).collect::<Result<Vec<_>, _>>()?;
         let rhs = rhs.into_iter().sum();
@@ -125,15 +125,15 @@ impl ThresholdGenerator {
         }
     }
 
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> usize {
         self.id
     }
 
-    pub fn k(&self) -> u32 {
+    pub fn k(&self) -> usize {
         self.k
     }
 
-    pub fn n(&self) -> u32 {
+    pub fn n(&self) -> usize {
         self.n
     }
 }
@@ -171,9 +171,9 @@ impl Threshold for ThresholdGenerator {
 
 pub struct ThresholdParty {
     ctx: CryptoContext,
-    id: u32,
-    k: u32,
-    n: u32,
+    id: usize,
+    k: usize,
+    n: usize,
     s_i: Scalar,
     h_i: CurveElem,
     pubkey: PublicKey,
@@ -224,21 +224,21 @@ impl ThresholdParty {
         Ok(DecryptShare { a_i, proof })
     }
 
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> usize {
         self.id
     }
 
-    pub fn k(&self) -> u32 {
+    pub fn k(&self) -> usize {
         self.k
     }
 
-    pub fn n(&self) -> u32 {
+    pub fn n(&self) -> usize {
         self.n
     }
 }
 
 // Lagrange coefficient calculation
-fn lambda<I: Iterator<Item=u32>>(parties: I, j: u32) -> DalekScalar {
+fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
     let mut numerator = 1;
     let mut denominator = 1;
     for l in parties {
@@ -268,15 +268,15 @@ pub struct DecryptShare {
 
 #[derive(Debug)]
 pub struct Decryption {
-    k: u32,
+    k: usize,
     ctx: CryptoContext,
     ct: AuthCiphertext,
-    pubkeys: HashMap<u32, CurveElem>,
-    a: HashMap<u32, DecryptShare>,
+    pubkeys: HashMap<usize, CurveElem>,
+    a: HashMap<usize, DecryptShare>,
 }
 
 impl Decryption {
-    pub fn new(k: u32, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
+    pub fn new(k: usize, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
         Self {
             k,
             ctx: ctx.cloned(),
@@ -286,7 +286,7 @@ impl Decryption {
         }
     }
 
-    pub fn add_share(&mut self, party_id: u32, party_pubkey_share: &CurveElem, share: &DecryptShare){
+    pub fn add_share(&mut self, party_id: usize, party_pubkey_share: &CurveElem, share: &DecryptShare){
         self.a.insert(party_id, share.clone());
         self.pubkeys.insert(party_id, party_pubkey_share.clone());
     }
@@ -315,7 +315,7 @@ impl Threshold for Decryption {
     type Destination = Scalar;
 
     fn is_complete(&self) -> bool {
-        self.a.len() as u32 >= self.k
+        self.a.len() as usize >= self.k
     }
 
     fn finish(&self) -> Result<Scalar, CryptoError> {
