@@ -58,7 +58,7 @@ impl CurveElem {
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
         let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
-        if x.bits() > scalar_max_size_bytes() * 8 + K as usize + 4 {
+        if x.bits() as usize > scalar_max_size_bytes() * 8 + K as usize + 4 {
             Err(CryptoError::Decoding)
         } else {
             Ok(to_scalar(x))
@@ -117,7 +117,7 @@ impl TryFrom<Scalar> for CurveElem {
 
     fn try_from(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
-        let bits = to_biguint(s).bits();
+        let bits = to_biguint(s).bits() as usize;
 
         let mut s = s.0;
         if bits > (252 - K) as usize {
