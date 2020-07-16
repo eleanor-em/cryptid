@@ -6,53 +6,53 @@ use crate::{CryptoError, Hasher, Scalar};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowDlog {
-    pub(crate) g: CurveElem,
-    y: CurveElem,
-    a: CurveElem,
+    pub(crate) base: CurveElem,
+    result: CurveElem,
+    blinded_base: CurveElem,
     r: Scalar,
 }
 
 impl PrfKnowDlog {
-    fn challenge(g: &CurveElem, y: &CurveElem, a: &CurveElem) -> Scalar {
+    fn challenge(base: &CurveElem, result: &CurveElem, blinded_base: &CurveElem) -> Scalar {
         Hasher::sha_256()
-            .update(&g.as_bytes())
-            .update(&y.as_bytes())
-            .update(&a.as_bytes())
+            .update(&base.as_bytes())
+            .update(&result.as_bytes())
+            .update(&blinded_base.as_bytes())
             .finish_scalar()
     }
 
     /// Proves that we know x such that y = g^x
-    pub fn new(ctx: &mut CryptoContext, g: &CurveElem, x: &Scalar, y: &CurveElem) -> Result<Self, CryptoError> {
+    pub fn new(ctx: &mut CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Result<Self, CryptoError> {
         // Choose random commitment
         let z = ctx.random_power()?;
-        let a = g.scaled(&z);
+        let blinded = base.scaled(&z);
         // Calculate the challenge
-        let c = Self::challenge(g, y, &a);
-        let r = Scalar(z.0 + c.0 * x.0);
+        let c = Self::challenge(base, result, &blinded);
+        let r = Scalar(z.0 + c.0 * power.0);
 
         Ok(Self {
-            g: g.clone(),
-            y: y.clone(),
-            a,
+            base: base.clone(),
+            result: result.clone(),
+            blinded_base: blinded,
             r,
         })
     }
 
     pub fn verify(&self) -> Result<bool, CryptoError> {
-        let c = Self::challenge(&self.g, &self.y, &self.a);
-        Ok(self.g.scaled(&self.r) == &self.a + &self.y.scaled(&c))
+        let c = Self::challenge(&self.base, &self.result, &self.blinded_base);
+        Ok(self.base.scaled(&self.r) == &self.blinded_base + &self.result.scaled(&c))
     }
 }
 
 // TODO: this is a big-ass proof
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfEqDlogs {
-    pub v: CurveElem,
-    pub f: CurveElem,
-    pub w: CurveElem,
-    pub h: CurveElem,
-    a: CurveElem,
-    b: CurveElem,
+    pub result1: CurveElem,
+    pub base1: CurveElem,
+    pub result2: CurveElem,
+    pub base2: CurveElem,
+    blinded_base1: CurveElem,
+    blinded_base2: CurveElem,
     r: Scalar,
 }
 
@@ -75,31 +75,31 @@ impl PrfEqDlogs {
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x
     pub fn new(ctx: &mut CryptoContext,
-               f: &CurveElem,
-               h: &CurveElem,
-               v: &CurveElem,
-               w: &CurveElem,
-               x: &Scalar) -> Result<Self, CryptoError> {
+               base1: &CurveElem,
+               base2: &CurveElem,
+               result1: &CurveElem,
+               result2: &CurveElem,
+               power: &Scalar) -> Result<Self, CryptoError> {
         let z = ctx.random_power()?;
-        let a = f.scaled(&z);
-        let b = h.scaled(&z);
-        let c = Self::challenge(&f, &h, &v, &w, &a, &b);
-        let r = Scalar(z.0 + c.0 * x.0);
+        let blinded_base1 = base1.scaled(&z);
+        let blinded_base2 = base2.scaled(&z);
+        let c = Self::challenge(&base1, &base2, &result1, &result2, &blinded_base1, &blinded_base2);
+        let r = Scalar(z.0 + c.0 * power.0);
         Ok(Self {
-            v: v.clone(),
-            f: f.clone(),
-            w: w.clone(),
-            h: h.clone(),
-            a,
-            b,
+            result1: result1.clone(),
+            base1: base1.clone(),
+            result2: result2.clone(),
+            base2: base2.clone(),
+            blinded_base1,
+            blinded_base2,
             r
         })
     }
 
     pub fn verify(&self) -> Result<bool, CryptoError> {
-        let c = Self::challenge(&self.f, &self.h, &self.v, &self.w, &self.a, &self.b);
-        Ok(self.f.scaled(&self.r) == &self.a + &self.v.scaled(&c)
-            && self.h.scaled(&self.r) == &self.b + &self.w.scaled(&c))
+        let c = Self::challenge(&self.base1, &self.base2, &self.result1, &self.result2, &self.blinded_base1, &self.blinded_base2);
+        Ok(self.base1.scaled(&self.r) == &self.blinded_base1 + &self.result1.scaled(&c)
+            && self.base2.scaled(&self.r) == &self.blinded_base2 + &self.result2.scaled(&c))
     }
 }
 
