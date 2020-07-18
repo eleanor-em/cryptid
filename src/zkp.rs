@@ -15,9 +15,9 @@ pub struct PrfKnowDlog {
 impl PrfKnowDlog {
     fn challenge(base: &CurveElem, result: &CurveElem, blinded_base: &CurveElem) -> Scalar {
         Hasher::sha_256()
-            .update(&base.as_bytes())
-            .update(&result.as_bytes())
-            .update(&blinded_base.as_bytes())
+            .and_update(&base.as_bytes())
+            .and_update(&result.as_bytes())
+            .and_update(&blinded_base.as_bytes())
             .finish_scalar()
     }
 
@@ -64,12 +64,12 @@ impl PrfEqDlogs {
                  a: &CurveElem,
                  b: &CurveElem) -> Scalar {
         Hasher::sha_256()
-            .update(&f.as_bytes())
-            .update(&h.as_bytes())
-            .update(&v.as_bytes())
-            .update(&w.as_bytes())
-            .update(&a.as_bytes())
-            .update(&b.as_bytes())
+            .and_update(&f.as_bytes())
+            .and_update(&h.as_bytes())
+            .and_update(&v.as_bytes())
+            .and_update(&w.as_bytes())
+            .and_update(&a.as_bytes())
+            .and_update(&b.as_bytes())
             .finish_scalar()
     }
 

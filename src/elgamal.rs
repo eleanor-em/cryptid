@@ -114,14 +114,14 @@ pub struct AuthCiphertext {
 impl AuthCiphertext {
     fn new(ct: &Ciphertext, plaintext: &CurveElem) -> Self {
         let hash = Hasher::sha_512()
-            .update(&plaintext.as_bytes())
+            .and_update(&plaintext.as_bytes())
             .finish().as_ref().to_vec();
         Self { contents: ct.clone(), hash }
     }
 
     pub fn verify(&self, plaintext: &CurveElem) -> bool {
         let hash = Hasher::sha_512()
-            .update(&plaintext.as_bytes())
+            .and_update(&plaintext.as_bytes())
             .finish().as_ref().to_vec();
 
         self.hash == hash

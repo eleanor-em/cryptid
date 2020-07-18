@@ -59,8 +59,12 @@ impl Hasher {
         Self(digest::Context::new(&digest::SHA512))
     }
 
-    pub fn update(mut self, data: &[u8]) -> Self {
+    pub fn update(&mut self, data: &[u8]) {
         self.0.update(&data);
+    }
+
+    pub fn and_update(mut self, data: &[u8]) -> Self {
+        self.update(&data);
         self
     }
 
@@ -121,7 +125,7 @@ mod tests {
     #[test]
     fn test_hash_encoding() {
         let msg = b"hello world";
-        let scalar = Hasher::sha_256().update(msg).finish_scalar();
+        let scalar = Hasher::sha_256().and_update(msg).finish_scalar();
         CurveElem::try_from(scalar.truncated()).unwrap();
     }
 }
