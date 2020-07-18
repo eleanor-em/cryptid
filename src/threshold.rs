@@ -1,11 +1,29 @@
 use std::collections::HashMap;
-use std::convert::identity;
+use std::convert::{identity, TryFrom};
 
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{ CurveElem, Polynomial };
 use crate::elgamal::{CryptoContext, AuthCiphertext, PublicKey};
 use crate::{zkp, CryptoError, Scalar, DalekScalar};
+use std::fmt::Display;
+use serde::export::Formatter;
+use std::fmt;
+use std::error::Error;
+
+#[derive(Clone, Copy, Debug)]
+pub enum EncodingError {
+    Base64,
+    CurveElem,
+}
+
+impl Display for EncodingError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for EncodingError {}
 
 pub trait Threshold {
     type Error;
@@ -28,6 +46,44 @@ pub struct ThresholdGenerator {
     shares: HashMap<usize, DalekScalar>,
     commitments: HashMap<usize, Vec<CurveElem>>,
     pk_parts: Vec<CurveElem>,
+}
+
+pub struct Commitment {
+    elems: Vec<CurveElem>,
+}
+
+impl Into<Vec<CurveElem>> for Commitment {
+    fn into(self) -> Vec<CurveElem> {
+        self.elems
+    }
+}
+
+impl From<Vec<CurveElem>> for Commitment {
+    fn from(elems: Vec<CurveElem>) -> Self {
+        Self { elems }
+    }
+}
+
+impl Display for Commitment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let encoded_elems: Vec<_> = self.elems.iter().map(|elem| elem.as_base64()).collect();
+        write!(f, "{}", encoded_elems.join(":"))
+    }
+}
+
+impl TryFrom<String> for Commitment {
+    type Error = EncodingError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let encoded_elems: Vec<_> = value.split(":").collect();
+        let mut elems = Vec::new();
+        for encoded in encoded_elems.into_iter() {
+            let decoded = base64::decode(encoded).map_err(|_| EncodingError::Base64)?;
+            let elem = CurveElem::try_from(decoded.as_slice()).map_err(|_| EncodingError::CurveElem)?;
+            elems.push(elem);
+        }
+        Ok(Self { elems })
+    }
 }
 
 impl ThresholdGenerator {

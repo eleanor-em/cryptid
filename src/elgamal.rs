@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
 use std::hash::Hash;
+use std::convert::TryFrom;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -53,6 +54,15 @@ impl PublicKey {
 
     pub fn as_base64(&self) -> String {
         self.y.as_base64()
+    }
+}
+
+impl TryFrom<&str> for PublicKey {
+    type Error = CryptoError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let y = CurveElem::try_from(value.as_bytes())?;
+        Ok(Self { y })
     }
 }
 

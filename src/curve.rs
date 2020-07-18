@@ -54,7 +54,6 @@ impl CurveElem {
         base64::encode(&self.as_bytes())
     }
 
-
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
         let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
