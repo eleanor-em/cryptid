@@ -36,8 +36,32 @@ impl Scalar {
     }
 }
 
+impl From<u8> for Scalar {
+    fn from(n: u8) -> Self {
+        Self(n.into())
+    }
+}
+
+impl From<u16> for Scalar {
+    fn from(n: u16) -> Self {
+        Self(n.into())
+    }
+}
+
 impl From<u32> for Scalar {
     fn from(n: u32) -> Self {
+        Self(n.into())
+    }
+}
+
+impl From<u64> for Scalar {
+    fn from(n: u64) -> Self {
+        Self(n.into())
+    }
+}
+
+impl From<u128> for Scalar {
+    fn from(n: u128) -> Self {
         Self(n.into())
     }
 }
