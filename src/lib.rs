@@ -48,6 +48,7 @@ impl From<[u8; 32]> for Scalar {
     }
 }
 
+#[derive(Clone)]
 pub struct Hasher(digest::Context);
 
 impl Hasher {
