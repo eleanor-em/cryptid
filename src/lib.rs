@@ -6,6 +6,7 @@ use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use serde::{Serialize, Deserialize};
 use num_bigint::BigUint;
 use crate::curve::to_scalar;
+use std::ops::{Add, Mul};
 
 type DalekScalar = InternalDalekScalar;
 
@@ -33,6 +34,22 @@ impl Scalar {
         let mut vec = self.0.as_bytes().to_vec();
         vec.truncate(Scalar::max_size_bytes());
         to_scalar(BigUint::from_bytes_le(&vec))
+    }
+}
+
+impl Add<Scalar> for Scalar {
+    type Output = Self;
+
+    fn add(self, rhs: Scalar) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Mul<Scalar> for Scalar {
+    type Output = Self;
+
+    fn mul(self, rhs: Scalar) -> Self::Output {
+        Self(self.0 * rhs.0)
     }
 }
 
