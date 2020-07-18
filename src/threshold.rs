@@ -44,35 +44,35 @@ pub struct ThresholdGenerator {
     trustee_count: usize,
     polynomial: Polynomial,
     shares: HashMap<usize, DalekScalar>,
-    commitments: HashMap<usize, Commitment>,
+    commitments: HashMap<usize, KeygenCommitment>,
     pk_parts: Vec<CurveElem>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Commitment {
+pub struct KeygenCommitment {
     elems: Vec<CurveElem>,
 }
 
-impl Into<Vec<CurveElem>> for Commitment {
+impl Into<Vec<CurveElem>> for KeygenCommitment {
     fn into(self) -> Vec<CurveElem> {
         self.elems
     }
 }
 
-impl From<Vec<CurveElem>> for Commitment {
+impl From<Vec<CurveElem>> for KeygenCommitment {
     fn from(elems: Vec<CurveElem>) -> Self {
         Self { elems }
     }
 }
 
-impl Display for Commitment {
+impl Display for KeygenCommitment {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let encoded_elems: Vec<_> = self.elems.iter().map(|elem| elem.as_base64()).collect();
         write!(f, "{}", encoded_elems.join(":"))
     }
 }
 
-impl TryFrom<String> for Commitment {
+impl TryFrom<String> for KeygenCommitment {
     type Error = EncodingError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -109,7 +109,7 @@ impl ThresholdGenerator {
     }
 
     // Returns the commitment vector to be shared publicly.
-    pub fn get_commitment(&self) -> Commitment {
+    pub fn get_commitment(&self) -> KeygenCommitment {
         self.polynomial.get_public_params().into()
     }
 
@@ -129,7 +129,7 @@ impl ThresholdGenerator {
     }
 
     // Receives a commitment from a particular party.
-    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &Commitment)
+    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &KeygenCommitment)
                               -> Result<(), CryptoError>{
         if sender_id > 0 && sender_id <= self.trustee_count {
             if self.commitments.insert(sender_id, commitment.clone()).is_none() {
