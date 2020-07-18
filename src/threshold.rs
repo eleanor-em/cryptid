@@ -44,10 +44,11 @@ pub struct ThresholdGenerator {
     trustee_count: usize,
     polynomial: Polynomial,
     shares: HashMap<usize, DalekScalar>,
-    commitments: HashMap<usize, Vec<CurveElem>>,
+    commitments: HashMap<usize, Commitment>,
     pk_parts: Vec<CurveElem>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Commitment {
     elems: Vec<CurveElem>,
 }
@@ -110,8 +111,8 @@ impl ThresholdGenerator {
     }
 
     // Returns the commitment vector to be shared publicly.
-    pub fn get_commitment(&self) -> Vec<CurveElem> {
-        self.polynomial.get_public_params()
+    pub fn get_commitment(&self) -> Commitment {
+        self.polynomial.get_public_params().into()
     }
 
     // Returns the polynomial secret share for the given index -- not to be shared publicly.
@@ -130,7 +131,7 @@ impl ThresholdGenerator {
     }
 
     // Receives a commitment from a particular party.
-    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &Vec<CurveElem>)
+    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &Commitment)
                               -> Result<(), CryptoError>{
         if sender_id > 0 && sender_id <= self.trustee_count {
             if self.commitments.insert(sender_id, commitment.clone()).is_none() {
@@ -163,7 +164,7 @@ impl ThresholdGenerator {
         // Verify the commitment
         let rhs = (0..self.min_trustees).map(|l| {
             let power = Scalar::from((self.index as u32).pow(l as u32));
-            let base = commitment.get(l).ok_or(CryptoError::CommitmentPartMissing)?;
+            let base = commitment.elems.get(l).ok_or(CryptoError::CommitmentPartMissing)?;
             Ok(base.scaled(&power))
         }).collect::<Result<Vec<_>, _>>()?;
         let rhs = rhs.into_iter().sum();
@@ -171,7 +172,7 @@ impl ThresholdGenerator {
         if lhs == rhs {
             if self.shares.insert(sender_id, share.0.clone()).is_none() {
                 // First part of the commitment is a public key share
-                self.pk_parts.push(commitment[0]);
+                self.pk_parts.push(commitment.elems[0]);
                 Ok(())
             } else {
                 Err(CryptoError::ShareDuplicated)
