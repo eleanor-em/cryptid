@@ -61,7 +61,7 @@ impl TryFrom<&str> for PublicKey {
     type Error = CryptoError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let y = CurveElem::try_from(value.as_bytes())?;
+        let y = CurveElem::try_from_base64(value)?;
         Ok(Self { y })
     }
 }
@@ -198,6 +198,18 @@ impl CryptoContext {
 #[cfg(test)]
 mod test {
     use crate::elgamal::{CryptoContext, PublicKey, Ciphertext, AuthCiphertext};
+    use std::convert::TryFrom;
+
+    #[test]
+    fn test_pubkey_serde() {
+        let mut ctx = CryptoContext::new();
+        let x = ctx.random_power().unwrap();
+        let y = PublicKey::new(ctx.g_to(&x).into());
+
+        let encoded = y.as_base64();
+        let decoded = PublicKey::try_from(encoded.as_str()).unwrap();
+        assert_eq!(y, decoded);
+    }
 
     #[test]
     fn test_homomorphism() {
