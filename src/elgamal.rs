@@ -154,6 +154,14 @@ pub struct CryptoContext {
     g: CurveElem,
 }
 
+impl Clone for CryptoContext {
+    fn clone(&self) -> Self {
+        let rng = self.rng.clone();
+        let g = self.g.clone();
+        Self { rng, g }
+    }
+}
+
 impl CryptoContext {
     pub fn new() -> Self {
         let rng = Arc::new(Mutex::new(ring::rand::SystemRandom::new()));
@@ -166,12 +174,6 @@ impl CryptoContext {
 
     pub fn rng(&self) -> Arc<Mutex<ring::rand::SystemRandom>> {
         self.rng.clone()
-    }
-
-    pub fn cloned(&self) -> Self {
-        let rng = self.rng.clone();
-        let g = self.g.clone();
-        Self { rng, g }
     }
 
     pub fn generator(&self) -> CurveElem {

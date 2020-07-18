@@ -191,7 +191,7 @@ pub struct Polynomial {
 
 impl Polynomial {
     pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
-        let mut ctx = ctx.cloned();
+        let mut ctx = ctx.clone();
         let x_i = ctx.random_power()?;
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);

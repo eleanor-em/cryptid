@@ -92,7 +92,7 @@ impl ThresholdGenerator {
     pub fn new(ctx: &mut CryptoContext, index: usize, min_trustees: usize, trustee_count: usize)
                -> Result<Self, CryptoError> {
         if index > 0 && index <= trustee_count {
-            let mut ctx = ctx.cloned();
+            let mut ctx = ctx.clone();
             let f_i = Polynomial::random(&mut ctx, min_trustees, trustee_count)?;
             let index = index as usize;
             let min_trustees = min_trustees as usize;
@@ -210,7 +210,7 @@ impl Threshold for ThresholdGenerator {
             let pubkey = PublicKey::new(self.pk_parts.clone().into_iter().sum());
 
             Ok(ThresholdParty {
-                ctx: self.ctx.cloned(),
+                ctx: self.ctx.clone(),
                 index: self.index,
                 min_trustees: self.min_trustees,
                 trustee_count: self.trustee_count,
@@ -234,10 +234,10 @@ pub struct ThresholdParty {
     pubkey: PublicKey,
 }
 
-impl ThresholdParty {
-    pub fn cloned(&self) -> Self {
+impl Clone for ThresholdParty {
+    fn clone(&self) -> Self {
         Self {
-            ctx: self.ctx.cloned(),
+            ctx: self.ctx.clone(),
             index: self.index,
             min_trustees: self.min_trustees,
             trustee_count: self.trustee_count,
@@ -246,7 +246,9 @@ impl ThresholdParty {
             pubkey: self.pubkey.clone(),
         }
     }
+}
 
+impl ThresholdParty {
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
     }
@@ -334,7 +336,7 @@ impl Decryption {
     pub fn new(min_trustees: usize, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
         Self {
             min_trustees,
-            ctx: ctx.cloned(),
+            ctx: ctx.clone(),
             ct: ct.clone(),
             pubkeys: HashMap::new(),
             dec_shares: HashMap::new(),
