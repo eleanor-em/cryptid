@@ -50,6 +50,15 @@ impl CurveElem {
         *self.0.compress().as_bytes()
     }
 
+    pub fn try_from_base64(encoded: &str) -> Result<Self, CryptoError> {
+        let decoded = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        if decoded.len() == 32 {
+            Ok(Self(CompressedRistretto::from_slice(&decoded).decompress().ok_or(CryptoError::Decoding)?))
+        } else {
+            Err(CryptoError::Decoding)
+        }
+    }
+
     pub fn as_base64(&self) -> String {
         base64::encode(&self.as_bytes())
     }
@@ -209,6 +218,7 @@ impl Polynomial {
 #[cfg(test)]
 mod tests {
     use crate::{elgamal, curve};
+    use crate::curve::CurveElem;
 
     #[test]
     fn test_biguint_scalar() {
@@ -217,5 +227,16 @@ mod tests {
             let s = ctx.random_power().unwrap();
             assert_eq!(s, curve::to_scalar(curve::to_biguint(s)));
         }
+    }
+
+    #[test]
+    fn test_curveelem_serde() {
+        let mut ctx = elgamal::CryptoContext::new();
+        let s = ctx.random_power().unwrap();
+        let elem = ctx.g_to(&s);
+
+        let encoded = elem.as_base64();
+        let decoded = CurveElem::try_from_base64(&encoded).unwrap();
+        assert_eq!(elem, decoded);
     }
 }

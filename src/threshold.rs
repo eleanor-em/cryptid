@@ -48,7 +48,7 @@ pub struct ThresholdGenerator {
     pk_parts: Vec<CurveElem>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Commitment {
     elems: Vec<CurveElem>,
 }
@@ -76,11 +76,9 @@ impl TryFrom<String> for Commitment {
     type Error = EncodingError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let encoded_elems: Vec<_> = value.split(":").collect();
         let mut elems = Vec::new();
-        for encoded in encoded_elems.into_iter() {
-            let decoded = base64::decode(encoded).map_err(|_| EncodingError::Base64)?;
-            let elem = CurveElem::try_from(decoded.as_slice()).map_err(|_| EncodingError::CurveElem)?;
+        for encoded in value.split(":") {
+            let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
             elems.push(elem);
         }
         Ok(Self { elems })
@@ -406,6 +404,7 @@ mod test {
     use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty, Threshold};
     use crate::elgamal::{CryptoContext, CurveElem};
     use std::collections::HashMap;
+    use std::convert::TryInto;
 
     fn run_generation(ctx: &mut CryptoContext) -> Vec<ThresholdGenerator> {
         const K: usize = 3;
@@ -460,6 +459,19 @@ mod test {
 
     fn get_parties(ctx: &mut CryptoContext) -> Vec<ThresholdParty> {
         complete_parties(run_generation(ctx))
+    }
+
+    #[test]
+    fn test_commitment_serde() {
+        const K: usize = 3;
+        const N: usize = 5;
+
+        let mut ctx = CryptoContext::new();
+        let generator = ThresholdGenerator::new(&mut ctx, 1, K, N).unwrap();
+        let commit = generator.get_commitment();
+        let commit_decoded = commit.to_string().try_into().unwrap();
+
+        assert_eq!(commit, commit_decoded)
     }
 
     #[test]
