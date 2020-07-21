@@ -10,6 +10,7 @@ use std::ops::{Add, Mul};
 pub use crate::util::AsBase64;
 use std::convert::{TryFrom, TryInto};
 use crate::util::SCALAR_MAX_BYTES;
+use crate::curve::CurveElem;
 
 type DalekScalar = InternalDalekScalar;
 
@@ -117,6 +118,12 @@ impl TryFrom<Vec<u8>> for Scalar {
 
             Ok(<[u8; 32]>::try_from(bytes.as_ref()).unwrap().into())
         }
+    }
+}
+
+impl From<CurveElem> for Scalar {
+    fn from(value: CurveElem) -> Self {
+        Self::from(value.as_bytes())
     }
 }
 
