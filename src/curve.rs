@@ -17,28 +17,6 @@ pub fn scalar_max_size_bytes() -> usize {
     ((252 - K) / 8) as usize
 }
 
-pub fn try_to_scalar(bytes: &Vec<u8>) -> Result<Scalar, CryptoError> {
-    if bytes.len() > 32 {
-        Err(CryptoError::Decoding)
-    } else {
-        let mut bytes = bytes.clone();
-        bytes.resize(32, 0);
-
-        Ok(<[u8; 32]>::try_from(bytes.as_ref()).unwrap().into())
-    }
-}
-
-pub fn to_scalar(s: BigUint) -> Scalar {
-    let mut s = s.to_bytes_le();
-    s.resize(32, 0);
-    // Below should never fail
-    try_to_scalar(&s).unwrap()
-}
-
-pub fn to_biguint(s: Scalar) -> BigUint {
-    BigUint::from_bytes_le(s.as_bytes())
-}
-
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(RistrettoPoint);
 
@@ -57,7 +35,7 @@ impl CurveElem {
         if x.bits() as usize > scalar_max_size_bytes() * 8 + K as usize + 4 {
             Err(CryptoError::Decoding)
         } else {
-            Ok(to_scalar(x))
+            Ok(x.into())
         }
     }
 
@@ -132,7 +110,8 @@ impl TryFrom<Scalar> for CurveElem {
 
     fn try_from(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
-        let bits = to_biguint(s).bits() as usize;
+        let x: BigUint = s.clone().into();
+        let bits = x.bits() as usize;
 
         let mut s = s.0;
         if bits > (252 - K) as usize {
@@ -159,7 +138,8 @@ impl TryFrom<BigUint> for CurveElem {
     type Error = CryptoError;
 
     fn try_from(n: BigUint) -> Result<Self, CryptoError> {
-        Self::try_from(to_scalar(n))
+        let s: Scalar = n.into();
+        Self::try_from(s)
     }
 }
 
@@ -224,16 +204,7 @@ impl Polynomial {
 
 #[cfg(test)]
 mod tests {
-    use crate::{elgamal, curve};
-
-    #[test]
-    fn test_biguint_scalar() {
-        let mut ctx = elgamal::CryptoContext::new();
-        for _ in 0..10 {
-            let s = ctx.random_power().unwrap();
-            assert_eq!(s, curve::to_scalar(curve::to_biguint(s)));
-        }
-    }
+    use crate::elgamal;
 
     #[test]
     fn test_curveelem_serde() {

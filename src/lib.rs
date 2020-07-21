@@ -6,10 +6,10 @@ use std::error::Error;
 use ring::digest;
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
-use crate::curve::to_scalar;
 use std::ops::{Add, Mul};
 pub use crate::util::AsBase64;
 use std::io::Write;
+use std::convert::{TryFrom, TryInto};
 
 type DalekScalar = InternalDalekScalar;
 
@@ -32,7 +32,7 @@ impl Scalar {
     pub fn truncated(&self) -> Self {
         let mut vec = self.0.as_bytes().to_vec();
         vec.truncate(Scalar::max_size_bytes());
-        to_scalar(BigUint::from_bytes_le(&vec))
+        BigUint::from_bytes_le(&vec).into()
     }
 }
 
@@ -49,7 +49,7 @@ impl AsBase64 for Scalar {
             Err(CryptoError::Decoding)
         } else {
             let buf = [0; 32];
-            bytes.write_all(&buf).map_err(|_| CryptoError::Decoding)?;
+            buf.copy_from_slice(&bytes);
             Ok(Scalar::from(buf))
         }
     }
@@ -109,6 +109,36 @@ impl From<[u8; 32]> for Scalar {
     }
 }
 
+impl TryFrom<Vec<u8>> for Scalar {
+    type Error = CryptoError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        if bytes.len() > 32 {
+            Err(CryptoError::Decoding)
+        } else {
+            let mut bytes = bytes.clone();
+            bytes.resize(32, 0);
+
+            Ok(<[u8; 32]>::try_from(bytes.as_ref()).unwrap().into())
+        }
+    }
+}
+
+impl From<BigUint> for Scalar {
+    fn from(s: BigUint) -> Self {
+        let mut s = s.to_bytes_le();
+        s.resize(32, 0);
+        // Below should never fail
+        s.try_into().unwrap()
+    }
+}
+
+impl Into<BigUint> for Scalar {
+    fn into(self) -> BigUint {
+        BigUint::from_bytes_le(self.as_bytes())
+    }
+}
+
 #[derive(Clone)]
 pub struct Hasher(digest::Context);
 
@@ -138,7 +168,7 @@ impl Hasher {
     pub fn finish_scalar(self) -> Scalar {
         let mut bytes = self.finish_vec();
         bytes.truncate(Scalar::max_size_bytes());
-        curve::try_to_scalar(&bytes).unwrap()
+        bytes.try_into().unwrap()
     }
 
     pub fn finish_vec(self) -> Vec<u8> {
@@ -180,14 +210,36 @@ pub mod threshold;
 
 #[cfg(test)]
 mod tests {
-    use crate::Hasher;
+    use crate::{Hasher, elgamal};
     use crate::curve::CurveElem;
     use std::convert::TryFrom;
+    use num_bigint::BigUint;
 
     #[test]
     fn test_hash_encoding() {
         let msg = b"hello world";
         let scalar = Hasher::sha_256().and_update(msg).finish_scalar();
         CurveElem::try_from(scalar.truncated()).unwrap();
+    }
+
+    #[test]
+    fn test_biguint_scalar() {
+        let mut ctx = elgamal::CryptoContext::new();
+        for _ in 0..10 {
+            let s = ctx.random_power().unwrap();
+            let x: BigUint = s.clone().into();
+            assert_eq!(s, x.into());
+        }
+    }
+
+    #[test]
+    fn test_scalar_serde() {
+        let mut ctx = elgamal::CryptoContext::new();
+        let s = ctx.random_power().unwrap();
+
+        let encoded = serde_json::to_string(&s).unwrap();
+        let decoded = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(s, decoded);
+
     }
 }
