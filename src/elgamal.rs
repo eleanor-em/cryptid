@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
 use std::hash::Hash;
-use std::convert::TryFrom;
+use crate::util::AsBase64;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -51,18 +51,19 @@ impl PublicKey {
         let c2 = &ct.c2 + &self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
-
-    pub fn as_base64(&self) -> String {
-        self.y.as_base64()
-    }
 }
 
-impl TryFrom<&str> for PublicKey {
+impl AsBase64 for PublicKey {
     type Error = CryptoError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let y = CurveElem::try_from_base64(value)?;
-        Ok(Self { y })
+    fn as_base64(&self) -> String {
+        self.y.as_base64()
+    }
+
+    fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
+        Ok(Self {
+            y: CurveElem::try_from_base64(encoded)?
+        })
     }
 }
 
@@ -200,7 +201,7 @@ impl CryptoContext {
 #[cfg(test)]
 mod test {
     use crate::elgamal::{CryptoContext, PublicKey, Ciphertext, AuthCiphertext};
-    use std::convert::TryFrom;
+    use crate::util::AsBase64;
 
     #[test]
     fn test_pubkey_serde() {
@@ -209,7 +210,7 @@ mod test {
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         let encoded = y.as_base64();
-        let decoded = PublicKey::try_from(encoded.as_str()).unwrap();
+        let decoded = PublicKey::try_from_base64(encoded.as_str()).unwrap();
         assert_eq!(y, decoded);
     }
 

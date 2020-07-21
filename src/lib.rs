@@ -1,23 +1,22 @@
+mod util;
+
 use std::fmt::{Display, Formatter};
 use std::error::Error;
 
 use ring::digest;
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
-use serde::{Serialize, Deserialize};
 use num_bigint::BigUint;
 use crate::curve::to_scalar;
 use std::ops::{Add, Mul};
+use crate::util::AsBase64;
+use std::io::Write;
 
 type DalekScalar = InternalDalekScalar;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Scalar(DalekScalar);
 
 impl Scalar {
-    pub fn as_base64(&self) -> String {
-        base64::encode(self.as_bytes())
-    }
-
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.as_bytes()
     }
@@ -36,6 +35,27 @@ impl Scalar {
         to_scalar(BigUint::from_bytes_le(&vec))
     }
 }
+
+impl AsBase64 for Scalar {
+    type Error = CryptoError;
+
+    fn as_base64(&self) -> String {
+        base64::encode(self.as_bytes())
+    }
+
+    fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
+        let mut bytes = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        if bytes.len() != 32 {
+            Err(CryptoError::Decoding)
+        } else {
+            let buf = [0; 32];
+            bytes.write_all(&buf).map_err(|_| CryptoError::Decoding)?;
+            Ok(Scalar::from(buf))
+        }
+    }
+}
+
+base64_serde!(crate::Scalar);
 
 impl Add<Scalar> for Scalar {
     type Output = Self;

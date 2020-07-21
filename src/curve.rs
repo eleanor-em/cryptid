@@ -1,14 +1,15 @@
-use std::convert::TryFrom;
+use crate::base64_serde;
 use std::iter::Sum;
 use std::ops::{Add, Sub};
 
 use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
-use serde::{Serialize, Deserialize};
 
 use crate::{CryptoError, Scalar, DalekScalar};
 use crate::elgamal::CryptoContext;
+use crate::util::AsBase64;
+use std::convert::TryFrom;
 
 const K: u32 = 12;
 
@@ -38,7 +39,7 @@ pub fn to_biguint(s: Scalar) -> BigUint {
     BigUint::from_bytes_le(s.as_bytes())
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(RistrettoPoint);
 
 impl CurveElem {
@@ -48,19 +49,6 @@ impl CurveElem {
 
     pub fn as_bytes(&self) -> [u8; 32] {
         *self.0.compress().as_bytes()
-    }
-
-    pub fn try_from_base64(encoded: &str) -> Result<Self, CryptoError> {
-        let decoded = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
-        if decoded.len() == 32 {
-            Ok(Self(CompressedRistretto::from_slice(&decoded).decompress().ok_or(CryptoError::Decoding)?))
-        } else {
-            Err(CryptoError::Decoding)
-        }
-    }
-
-    pub fn as_base64(&self) -> String {
-        base64::encode(&self.as_bytes())
     }
 
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
@@ -81,6 +69,25 @@ impl CurveElem {
         Self(curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT)
     }
 }
+
+impl AsBase64 for CurveElem {
+    type Error = CryptoError;
+
+    fn as_base64(&self) -> String {
+            base64::encode(&self.as_bytes())
+        }
+
+    fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
+        let decoded = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        if decoded.len() == 32 {
+            Ok(Self(CompressedRistretto::from_slice(&decoded).decompress().ok_or(CryptoError::Decoding)?))
+        } else {
+            Err(CryptoError::Decoding)
+        }
+    }
+}
+
+base64_serde!(crate::curve::CurveElem);
 
 impl Add for CurveElem {
     type Output = CurveElem;
@@ -218,7 +225,6 @@ impl Polynomial {
 #[cfg(test)]
 mod tests {
     use crate::{elgamal, curve};
-    use crate::curve::CurveElem;
 
     #[test]
     fn test_biguint_scalar() {
@@ -235,8 +241,8 @@ mod tests {
         let s = ctx.random_power().unwrap();
         let elem = ctx.g_to(&s);
 
-        let encoded = elem.as_base64();
-        let decoded = CurveElem::try_from_base64(&encoded).unwrap();
+        let encoded = serde_json::to_string(&elem).unwrap();
+        let decoded = serde_json::from_str(&encoded).unwrap();
         assert_eq!(elem, decoded);
     }
 }

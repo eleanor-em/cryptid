@@ -10,6 +10,7 @@ use std::fmt::Display;
 use serde::export::Formatter;
 use std::fmt;
 use std::error::Error;
+use crate::util::AsBase64;
 
 #[derive(Clone, Copy, Debug)]
 pub enum EncodingError {
@@ -407,6 +408,7 @@ mod test {
     use crate::elgamal::{CryptoContext, CurveElem};
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use crate::util::AsBase64;
 
     fn run_generation(ctx: &mut CryptoContext) -> Vec<ThresholdGenerator> {
         const K: usize = 3;

@@ -4,6 +4,7 @@ use crate::elgamal::CryptoContext;
 use crate::curve::CurveElem;
 use crate::{CryptoError, Hasher, Scalar};
 
+// TODO: fix up serialisation to be more efficient
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowDlog {
     pub(crate) base: CurveElem,
@@ -44,7 +45,7 @@ impl PrfKnowDlog {
     }
 }
 
-// TODO: this is a big-ass proof
+// TODO: fix up serialisation to be more efficient
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfEqDlogs {
     pub result1: CurveElem,
