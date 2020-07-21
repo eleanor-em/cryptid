@@ -8,7 +8,6 @@ use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
 use std::ops::{Add, Mul};
 pub use crate::util::AsBase64;
-use std::io::Write;
 use std::convert::{TryFrom, TryInto};
 
 type DalekScalar = InternalDalekScalar;
@@ -44,11 +43,11 @@ impl AsBase64 for Scalar {
     }
 
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
-        let mut bytes = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        let bytes = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
         if bytes.len() != 32 {
             Err(CryptoError::Decoding)
         } else {
-            let buf = [0; 32];
+            let mut buf = [0; 32];
             buf.copy_from_slice(&bytes);
             Ok(Scalar::from(buf))
         }
