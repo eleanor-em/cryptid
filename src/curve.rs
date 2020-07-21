@@ -115,7 +115,7 @@ impl TryFrom<Scalar> for CurveElem {
 
         let mut s = s.0;
         if bits > (252 - K) as usize {
-            return Err(CryptoError::Encoding);
+            return Err(CryptoError::TooLarge);
         }
 
         let buffer = DalekScalar::from(2u32.pow(K));

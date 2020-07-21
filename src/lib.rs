@@ -181,6 +181,7 @@ pub type Digest = digest::Digest;
 pub enum CryptoError {
     Unspecified(ring::error::Unspecified),
     KeyRejected(ring::error::KeyRejected),
+    TooLarge,
     Encoding,
     Decoding,
     Misc,
