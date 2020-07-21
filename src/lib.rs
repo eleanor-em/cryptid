@@ -9,6 +9,7 @@ use num_bigint::BigUint;
 use std::ops::{Add, Mul};
 pub use crate::util::AsBase64;
 use std::convert::{TryFrom, TryInto};
+use crate::util::SCALAR_MAX_BYTES;
 
 type DalekScalar = InternalDalekScalar;
 
@@ -24,13 +25,9 @@ impl Scalar {
         self.0.to_bytes()
     }
 
-    pub fn max_size_bytes() -> usize {
-        curve::scalar_max_size_bytes()
-    }
-
     pub fn truncated(&self) -> Self {
         let mut vec = self.0.as_bytes().to_vec();
-        vec.truncate(Scalar::max_size_bytes());
+        vec.truncate(SCALAR_MAX_BYTES);
         BigUint::from_bytes_le(&vec).into()
     }
 }
@@ -166,7 +163,7 @@ impl Hasher {
     // NOTE: this will truncate the bytes of the hash. Use with care.
     pub fn finish_scalar(self) -> Scalar {
         let mut bytes = self.finish_vec();
-        bytes.truncate(Scalar::max_size_bytes());
+        bytes.truncate(SCALAR_MAX_BYTES);
         bytes.try_into().unwrap()
     }
 

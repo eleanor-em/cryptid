@@ -7,8 +7,8 @@ use serde::{Serialize, Deserialize};
 use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
 use std::hash::Hash;
-use crate::util::AsBase64;
-use std::convert::TryFrom;
+use crate::util::{AsBase64, SCALAR_MAX_BYTES};
+use std::convert::{TryFrom, TryInto};
 use crate::threshold::EncodingError;
 
 #[derive(Copy, Clone)]
@@ -211,6 +211,22 @@ impl CryptoContext {
         rng.fill(&mut buf)
             .map_err(|e| CryptoError::Unspecified(e))?;
         Ok(buf.into())
+    }
+
+    pub fn random_elem(&mut self) -> Result<CurveElem, CryptoError> {
+        let rng = self.rng.lock().unwrap();
+
+        let mut buf = [0; SCALAR_MAX_BYTES];
+        rng.fill(&mut buf)
+            .map_err(|e| CryptoError::Unspecified(e))?;
+
+        let mut final_buf = [0u8; 32];
+        for (i, byte) in buf.iter().enumerate() {
+            final_buf[i] = *byte;
+        }
+
+        let s: Scalar = final_buf.into();
+        s.try_into()
     }
 
     pub fn g_to(&self, power: &Scalar) -> CurveElem {

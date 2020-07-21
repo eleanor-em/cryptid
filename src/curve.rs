@@ -8,14 +8,8 @@ use num_bigint::BigUint;
 
 use crate::{CryptoError, Scalar, DalekScalar};
 use crate::elgamal::CryptoContext;
-use crate::util::AsBase64;
+use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use std::convert::TryFrom;
-
-const K: u32 = 12;
-
-pub fn scalar_max_size_bytes() -> usize {
-    ((252 - K) / 8) as usize
-}
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(RistrettoPoint);
@@ -32,7 +26,7 @@ impl CurveElem {
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
         let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
-        if x.bits() as usize > scalar_max_size_bytes() * 8 + K as usize + 4 {
+        if x.bits() as usize > SCALAR_MAX_BYTES * 8 + K as usize + 4 {
             Err(CryptoError::Decoding)
         } else {
             Ok(x.into())

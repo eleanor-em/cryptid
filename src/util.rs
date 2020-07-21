@@ -5,6 +5,9 @@ pub trait AsBase64 where Self: Sized {
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error>;
 }
 
+pub const K: u32 = 12;
+pub const SCALAR_MAX_BYTES: usize = ((252 - K) / 8) as usize;
+
 #[macro_export]
 macro_rules! base64_serde {
     ($name:ty) => {
