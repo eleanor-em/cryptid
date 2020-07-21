@@ -8,7 +8,7 @@ use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
 use crate::curve::to_scalar;
 use std::ops::{Add, Mul};
-use crate::util::AsBase64;
+pub use crate::util::AsBase64;
 use std::io::Write;
 
 type DalekScalar = InternalDalekScalar;
