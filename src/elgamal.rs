@@ -8,6 +8,8 @@ use crate::{curve, CryptoError, Hasher};
 use crate::Scalar;
 use std::hash::Hash;
 use crate::util::AsBase64;
+use std::convert::TryFrom;
+use crate::threshold::EncodingError;
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {
@@ -79,7 +81,7 @@ impl Display for PublicKey {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Ciphertext {
     pub c1: CurveElem,
     pub c2: CurveElem,
@@ -98,11 +100,29 @@ impl Ciphertext {
     }
 }
 
-impl Display for Ciphertext {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})",
-               self.c1.as_base64(),
-               self.c2.as_base64())
+impl ToString for Ciphertext {
+    fn to_string(&self) -> String {
+        format!("{}:{}", self.c1.as_base64(), self.c2.as_base64())
+    }
+}
+
+impl TryFrom<String> for Ciphertext {
+    type Error = EncodingError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let mut elems = Vec::new();
+        for encoded in value.split(":") {
+            let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
+            elems.push(elem);
+        }
+        if elems.len() != 2 {
+            Err(EncodingError::Length)
+        } else {
+            Ok(Self {
+                c1: elems[0],
+                c2: elems[1],
+            })
+        }
     }
 }
 
@@ -202,6 +222,7 @@ impl CryptoContext {
 mod test {
     use crate::elgamal::{CryptoContext, PublicKey, Ciphertext, AuthCiphertext};
     use crate::util::AsBase64;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_pubkey_serde() {
@@ -212,6 +233,22 @@ mod test {
         let encoded = y.as_base64();
         let decoded = PublicKey::try_from_base64(encoded.as_str()).unwrap();
         assert_eq!(y, decoded);
+    }
+
+    #[test]
+    fn test_ciphertext_serde() {
+        let mut ctx = CryptoContext::new();
+        let x = ctx.random_power().unwrap();
+        let y = PublicKey::new(ctx.g_to(&x).into());
+
+        let r = ctx.random_power().unwrap();
+        let m = ctx.g_to(&r);
+
+        let r = ctx.random_power().unwrap();
+
+        let ct = y.encrypt(&ctx, &m.into(), &r);
+
+        assert_eq!(ct, Ciphertext::try_from(ct.to_string()).unwrap());
     }
 
     #[test]

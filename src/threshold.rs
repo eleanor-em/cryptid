@@ -16,6 +16,7 @@ use crate::util::AsBase64;
 pub enum EncodingError {
     Base64,
     CurveElem,
+    Length,
 }
 
 impl Display for EncodingError {
