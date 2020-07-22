@@ -166,7 +166,8 @@ impl CryptoContext {
 
     pub fn random_power(&mut self) -> Result<Scalar, CryptoError> {
         let rng = self.rng.lock().unwrap();
-        let mut buf = [0; 32];
+        // Generate 340 bit numbers and reduce mod group order
+        let mut buf = [0; 64];
         rng.fill(&mut buf)
             .map_err(|e| CryptoError::Unspecified(e))?;
         Ok(buf.into())
@@ -175,17 +176,21 @@ impl CryptoContext {
     pub fn random_elem(&mut self) -> Result<CurveElem, CryptoError> {
         let rng = self.rng.lock().unwrap();
 
-        let mut buf = [0; SCALAR_MAX_BYTES];
-        rng.fill(&mut buf)
-            .map_err(|e| CryptoError::Unspecified(e))?;
+        loop {
+            let mut buf = [0; SCALAR_MAX_BYTES];
+            rng.fill(&mut buf)
+                .map_err(|e| CryptoError::Unspecified(e))?;
 
-        let mut final_buf = [0u8; 32];
-        for (i, byte) in buf.iter().enumerate() {
-            final_buf[i] = *byte;
+            let mut final_buf = [0u8; 64];
+            for (i, byte) in buf.iter().enumerate() {
+                final_buf[i] = *byte;
+            }
+
+            let s: Scalar = final_buf.into();
+            if let Ok(elem) = CurveElem::try_from(s) {
+                return Ok(elem);
+            }
         }
-
-        let s: Scalar = final_buf.into();
-        s.try_into()
     }
 
     pub fn g_to(&self, power: &Scalar) -> CurveElem {

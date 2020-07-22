@@ -23,6 +23,31 @@ impl CurveElem {
         *self.0.compress().as_bytes()
     }
 
+    pub fn try_encode(s: Scalar) -> Result<Self, CryptoError> {
+        // Can encode at most 252 - K bits
+        let x: BigUint = s.clone().into();
+        let bits = x.bits() as usize;
+
+        let mut s = s.0;
+        if bits > (252 - K) as usize {
+            return Err(CryptoError::TooLarge);
+        }
+
+        let buffer = DalekScalar::from(2u32.pow(K));
+        s *= buffer;
+        let mut d = DalekScalar::zero();
+        loop {
+            if let Some(p) = CompressedRistretto((s + d).to_bytes()).decompress() {
+                return Ok(Self(p));
+            }
+
+            d += DalekScalar::one();
+            if d - buffer == DalekScalar::zero() {
+                return Err(CryptoError::Encoding);
+            }
+        }
+    }
+
     pub fn decoded(&self) -> Result<Scalar, CryptoError> {
         let adjusted = Scalar::from(self.0.compress().to_bytes());
         let x = BigUint::from_bytes_le(adjusted.as_bytes()) / 2u32.pow(K);
@@ -103,27 +128,10 @@ impl TryFrom<Scalar> for CurveElem {
     type Error = CryptoError;
 
     fn try_from(s: Scalar) -> Result<Self, CryptoError> {
-        // Can encode at most 252 - K bits
-        let x: BigUint = s.clone().into();
-        let bits = x.bits() as usize;
-
-        let mut s = s.0;
-        if bits > (252 - K) as usize {
-            return Err(CryptoError::TooLarge);
-        }
-
-        let buffer = DalekScalar::from(2u32.pow(K));
-        s *= buffer;
-        let mut d = DalekScalar::zero();
-        loop {
-            if let Some(p) = CompressedRistretto((s + d).to_bytes()).decompress() {
-                return Ok(Self(p));
-            }
-
-            d += DalekScalar::one();
-            if d - buffer == DalekScalar::zero() {
-                return Err(CryptoError::Encoding);
-            }
+        if let Some(p) = CompressedRistretto(s.to_bytes()).decompress() {
+            Ok(Self(p))
+        } else {
+            Err(CryptoError::Encoding)
         }
     }
 }
