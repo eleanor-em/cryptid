@@ -196,7 +196,6 @@ pub enum CryptoError {
     ShareDuplicated,
     ShareRejected,
     KeygenMissing,
-    AuthTagRejected,
 }
 
 impl Display for CryptoError {

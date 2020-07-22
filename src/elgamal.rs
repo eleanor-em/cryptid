@@ -4,7 +4,7 @@ use std::sync::{Mutex, Arc};
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::{curve, CryptoError, Hasher};
+use crate::{curve, CryptoError};
 use crate::Scalar;
 use std::hash::Hash;
 use crate::util::{AsBase64, SCALAR_MAX_BYTES};
@@ -41,11 +41,6 @@ impl PublicKey {
         let c1 = ctx.g_to(r);
         let c2 = m + &self.y.scaled(r);
         Ciphertext { c1, c2 }
-    }
-
-    pub fn encrypt_auth(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> AuthCiphertext {
-        let ct = self.encrypt(ctx, m, r);
-        AuthCiphertext::new(&ct, m)
     }
 
     pub fn rerand(self, ctx: &CryptoContext, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
@@ -126,47 +121,6 @@ impl TryFrom<String> for Ciphertext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthCiphertext {
-    pub contents: Ciphertext,
-    hash: Vec<u8>,
-}
-
-impl AuthCiphertext {
-    fn new(ct: &Ciphertext, plaintext: &CurveElem) -> Self {
-        let hash = Hasher::sha_512()
-            .and_update(&plaintext.as_bytes())
-            .finish().as_ref().to_vec();
-        Self { contents: ct.clone(), hash }
-    }
-
-    pub fn verify(&self, plaintext: &CurveElem) -> bool {
-        let hash = Hasher::sha_512()
-            .and_update(&plaintext.as_bytes())
-            .finish().as_ref().to_vec();
-
-        self.hash == hash
-    }
-
-    pub fn decrypt(&self, secret_key: &Scalar) -> Option<CurveElem> {
-        let plaintext = self.contents.decrypt(secret_key);
-        if self.verify(&plaintext) {
-            Some(plaintext)
-        } else {
-            None
-        }
-    }
-}
-
-impl Display for AuthCiphertext {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})[{}]",
-               self.contents.c1.as_base64(),
-               self.contents.c2.as_base64(),
-               base64::encode(&self.hash))
-    }
-}
-
 pub type CurveElem = curve::CurveElem;
 
 #[derive(Debug)]
@@ -236,7 +190,7 @@ impl CryptoContext {
 
 #[cfg(test)]
 mod test {
-    use crate::elgamal::{CryptoContext, PublicKey, Ciphertext, AuthCiphertext};
+    use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
     use crate::util::AsBase64;
     use std::convert::TryFrom;
 
@@ -294,45 +248,5 @@ mod test {
         let combined = &m1 + &m2;
 
         assert_eq!(combined, decryption);
-    }
-
-    #[test]
-    fn test_authtag() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
-        let y = PublicKey::new(ctx.g_to(&x).into());
-
-        let r = ctx.random_power().unwrap();
-        let m = ctx.g_to(&r);
-        let m_r = ctx.random_power().unwrap();
-        let ct = y.encrypt_auth(&ctx, &m, &m_r);
-
-        assert_eq!(ct.decrypt(&x).unwrap(), m);
-    }
-
-    #[test]
-    fn test_authtag_fail() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
-        let y = PublicKey::new(ctx.g_to(&x).into());
-
-        let r = ctx.random_power().unwrap();
-        let m = ctx.g_to(&r);
-        let m_r = ctx.random_power().unwrap();
-        let ct = y.encrypt_auth(&ctx, &m, &m_r);
-
-        let r = ctx.random_power().unwrap();
-        let m_dash = ctx.g_to(&r);
-        let ct_modified = Ciphertext {
-            c1: ct.contents.c1,
-            c2: ct.contents.c2 + m_dash,
-        };
-        let auth_modified = AuthCiphertext {
-            contents: ct_modified.clone(),
-            hash: ct.hash.clone(),
-        };
-
-        assert!(!auth_modified.verify(&(m + m_dash)));
-        assert_eq!(ct_modified.decrypt(&x), m + m_dash);
     }
 }

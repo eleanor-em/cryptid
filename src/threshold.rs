@@ -4,7 +4,7 @@ use std::convert::{identity, TryFrom};
 use serde::{Serialize, Deserialize};
 
 use crate::curve::{ CurveElem, Polynomial };
-use crate::elgamal::{CryptoContext, AuthCiphertext, PublicKey};
+use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
 use crate::{zkp, CryptoError, Scalar, DalekScalar};
 use std::fmt::Display;
 use serde::export::Formatter;
@@ -266,16 +266,14 @@ impl ThresholdParty {
     }
 
     // Returns this party's share of a decryption.
-    pub fn decrypt_share(&mut self, ct: &AuthCiphertext) -> Result<DecryptShare, CryptoError> {
-        let c1 = ct.contents.c1;
-
-        let dec_share = c1.scaled(&self.secret_share);
+    pub fn decrypt_share(&mut self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
+        let dec_share = ct.c1.scaled(&self.secret_share);
         let g = self.ctx.generator();
 
         let proof = zkp::PrfEqDlogs::new(
             &mut self.ctx,
             &g,
-            &c1,
+            &ct.c1,
             &self.pubkey_share,
             &dec_share,
             &self.secret_share)?;
@@ -329,13 +327,13 @@ pub struct DecryptShare {
 pub struct Decryption {
     min_trustees: usize,
     ctx: CryptoContext,
-    ct: AuthCiphertext,
+    ct: Ciphertext,
     pubkeys: HashMap<usize, CurveElem>,
     dec_shares: HashMap<usize, DecryptShare>,
 }
 
 impl Decryption {
-    pub fn new(min_trustees: usize, ctx: &CryptoContext, ct: &AuthCiphertext) -> Self {
+    pub fn new(min_trustees: usize, ctx: &CryptoContext, ct: &Ciphertext) -> Self {
         Self {
             min_trustees,
             ctx: ctx.clone(),
@@ -359,7 +357,7 @@ impl Decryption {
                 // Verify the proof, and that the parameters are what they're supposed to be
                 Ok(proof.verify()?
                     && proof.base1 == self.ctx.generator()
-                    && proof.base2 == self.ct.contents.c1
+                    && proof.base2 == self.ct.c1
                     && proof.result1 == *pubkey_share
                     && proof.result2 == share.share)
             })
@@ -388,12 +386,8 @@ impl Threshold for Decryption {
                         share.share.scaled(&lagrange)
                     })
                     .sum();
-                let plaintext = self.ct.contents.c2 - dec_factor;
-                if self.ct.verify(&plaintext) {
-                    plaintext.decoded()
-                } else {
-                    Err(CryptoError::AuthTagRejected)
-                }
+                let plaintext = self.ct.c2 - dec_factor;
+                plaintext.decoded()
             } else {
                 Err(CryptoError::ShareRejected)
             }
@@ -510,7 +504,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
         let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt_auth(&ctx, &m, &r);
+        let ct = pk.encrypt(&ctx, &m, &r);
 
         let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
 
@@ -520,7 +514,6 @@ mod test {
                 decrypted.add_share(party.index, &party.pubkey_share, &share);
             });
 
-        assert!(decrypted.verify().unwrap());
         assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
@@ -533,7 +526,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
         let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt_auth(&ctx, &m, &r);
+        let ct = pk.encrypt(&ctx, &m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate(k as usize);
@@ -558,7 +551,7 @@ mod test {
         let r = ctx.random_power().unwrap();
         let m_r = ctx.random_power().unwrap();
         let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt_auth(&ctx, &m, &r);
+        let ct = pk.encrypt(&ctx, &m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate((k - 1) as usize);
