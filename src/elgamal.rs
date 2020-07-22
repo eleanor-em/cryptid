@@ -1,15 +1,15 @@
+use std::convert::{TryFrom, TryInto};
 use std::fmt::{Formatter, Display};
+use std::hash::Hash;
 use std::sync::{Mutex, Arc};
 
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::{curve, CryptoError};
 use crate::Scalar;
-use std::hash::Hash;
-use crate::util::{AsBase64, SCALAR_MAX_BYTES};
-use std::convert::{TryFrom, TryInto};
+use crate::{curve, CryptoError};
 use crate::threshold::EncodingError;
+use crate::util::{AsBase64, SCALAR_MAX_BYTES};
 
 #[derive(Copy, Clone)]
 pub struct KeyPair {

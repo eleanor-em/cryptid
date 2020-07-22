@@ -1,16 +1,17 @@
 mod util;
 
-use std::fmt::{Display, Formatter};
+use std::convert::{TryFrom, TryInto};
 use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::ops::{Add, Mul};
 
-use ring::digest;
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
-use std::ops::{Add, Mul};
-pub use crate::util::AsBase64;
-use std::convert::{TryFrom, TryInto};
-use crate::util::SCALAR_MAX_BYTES;
+use ring::digest;
+
 use crate::curve::CurveElem;
+pub use crate::util::AsBase64;
+use crate::util::SCALAR_MAX_BYTES;
 
 type DalekScalar = InternalDalekScalar;
 

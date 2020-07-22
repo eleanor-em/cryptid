@@ -1,4 +1,4 @@
-use crate::base64_serde;
+use std::convert::TryFrom;
 use std::iter::Sum;
 use std::ops::{Add, Sub};
 
@@ -7,9 +7,9 @@ use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 
 use crate::{CryptoError, Scalar, DalekScalar};
+use crate::base64_serde;
 use crate::elgamal::CryptoContext;
 use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
-use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(RistrettoPoint);

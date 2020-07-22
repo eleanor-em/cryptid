@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::convert::{identity, TryFrom};
+use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
 
 use serde::{Serialize, Deserialize};
+use serde::export::Formatter;
 
 use crate::curve::{ CurveElem, Polynomial };
 use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
 use crate::{zkp, CryptoError, Scalar, DalekScalar};
-use std::fmt::Display;
-use serde::export::Formatter;
-use std::fmt;
-use std::error::Error;
 use crate::util::AsBase64;
 
 #[derive(Clone, Copy, Debug)]
