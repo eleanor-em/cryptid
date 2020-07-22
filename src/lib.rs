@@ -120,10 +120,13 @@ impl TryFrom<Vec<u8>> for Scalar {
         if bytes.len() > 64 {
             Err(CryptoError::Decoding)
         } else {
-            let mut bytes = bytes.clone();
-            bytes.resize(64, 0);
+            let max = bytes.len().min(64);
+            let mut buf = [0; 64];
+            for i in 0..max {
+                buf[i] = bytes[i];
+            }
 
-            Ok(<[u8; 64]>::try_from(bytes.as_ref()).unwrap().into())
+            Ok(buf.into())
         }
     }
 }
@@ -222,7 +225,6 @@ pub mod threshold;
 mod tests {
     use crate::{Hasher, elgamal};
     use crate::curve::CurveElem;
-    use std::convert::TryFrom;
     use num_bigint::BigUint;
 
     #[test]
