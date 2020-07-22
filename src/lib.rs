@@ -117,13 +117,13 @@ impl TryFrom<Vec<u8>> for Scalar {
     type Error = CryptoError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        if bytes.len() > 32 {
+        if bytes.len() > 64 {
             Err(CryptoError::Decoding)
         } else {
             let mut bytes = bytes.clone();
-            bytes.resize(32, 0);
+            bytes.resize(64, 0);
 
-            Ok(<[u8; 32]>::try_from(bytes.as_ref()).unwrap().into())
+            Ok(<[u8; 64]>::try_from(bytes.as_ref()).unwrap().into())
         }
     }
 }
