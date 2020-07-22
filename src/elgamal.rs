@@ -10,22 +10,7 @@ use crate::Scalar;
 use crate::{curve, CryptoError};
 use crate::threshold::EncodingError;
 use crate::util::{AsBase64, SCALAR_MAX_BYTES};
-
-#[derive(Copy, Clone)]
-pub struct KeyPair {
-    pub pk: PublicKey,
-    pub x_i: Scalar,
-    pub y_i: CurveElem,
-}
-
-impl KeyPair {
-    fn new(ctx: &mut CryptoContext) -> Result<Self, CryptoError> {
-        let x_i = ctx.random_power()?;
-        let y_i = ctx.g_to(&x_i);
-        let pk = PublicKey::new(y_i);
-        Ok(Self { pk, x_i, y_i })
-    }
-}
+use num_bigint::BigUint;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PublicKey {
@@ -73,6 +58,22 @@ impl Hash for PublicKey {
 impl Display for PublicKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.y.as_base64())
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct KeyPair {
+    pub pk: PublicKey,
+    pub x_i: Scalar,
+    pub y_i: CurveElem,
+}
+
+impl KeyPair {
+    fn new(ctx: &mut CryptoContext) -> Result<Self, CryptoError> {
+        let x_i = ctx.random_power()?;
+        let y_i = ctx.g_to(&x_i);
+        let pk = PublicKey::new(y_i);
+        Ok(Self { pk, x_i, y_i })
     }
 }
 
@@ -145,6 +146,10 @@ impl CryptoContext {
             rng,
             g
         }
+    }
+
+    pub fn order() -> BigUint {
+        BigUint::from_bytes_le(curve25519_dalek::constants::BASEPOINT_ORDER.as_bytes())
     }
 
     pub fn rng(&self) -> Arc<Mutex<ring::rand::SystemRandom>> {

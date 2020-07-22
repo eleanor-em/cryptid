@@ -35,21 +35,6 @@ pub trait Threshold {
     fn finish(&self) -> Result<Self::Destination, Self::Error>;
 }
 
-// Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
-// key generation and decryption protocol.
-//
-// See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
-pub struct ThresholdGenerator {
-    ctx: CryptoContext,
-    index: usize,
-    min_trustees: usize,
-    trustee_count: usize,
-    polynomial: Polynomial,
-    shares: HashMap<usize, DalekScalar>,
-    commitments: HashMap<usize, KeygenCommitment>,
-    pk_parts: Vec<CurveElem>,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeygenCommitment {
     elems: Vec<CurveElem>,
@@ -85,6 +70,21 @@ impl TryFrom<String> for KeygenCommitment {
         }
         Ok(Self { elems })
     }
+}
+
+// Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
+// key generation and decryption protocol.
+//
+// See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
+pub struct ThresholdGenerator {
+    ctx: CryptoContext,
+    index: usize,
+    min_trustees: usize,
+    trustee_count: usize,
+    polynomial: Polynomial,
+    shares: HashMap<usize, DalekScalar>,
+    commitments: HashMap<usize, KeygenCommitment>,
+    pk_parts: Vec<CurveElem>,
 }
 
 impl ThresholdGenerator {
