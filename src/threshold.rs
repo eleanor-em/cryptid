@@ -17,6 +17,8 @@ pub enum EncodingError {
     Base64,
     CurveElem,
     Length,
+    Num,
+    Verify,
 }
 
 impl Display for EncodingError {

@@ -18,4 +18,5 @@ ring = "0"
 curve25519-dalek = { version = "2", features = ["serde", "simd_backend"] }
 num-traits = "0"
 base64 = "0"
-
+rand_chacha = "0"
+rand = "0"

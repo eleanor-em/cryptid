@@ -1,3 +1,9 @@
+pub mod commit;
+pub mod elgamal;
+pub mod shuffle;
+pub mod threshold;
+pub mod zkp;
+mod curve;
 mod util;
 
 use std::convert::{TryFrom, TryInto};
@@ -215,11 +221,6 @@ impl Display for CryptoError {
 }
 
 impl Error for CryptoError {}
-
-pub mod elgamal;
-mod curve;
-pub mod zkp;
-pub mod threshold;
 
 #[cfg(test)]
 mod tests {
