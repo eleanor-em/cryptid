@@ -357,6 +357,7 @@ impl ShuffleProof {
             + ctx.g_to(&self.s_3)
             + (0..n).map(|i| commit_ctx.generators[i].scaled(&self.s_primes[i])).sum();
 
+        // TODO: does re-using the same s_prime[i] here present a weakness?
         let mut t_4_primes = Vec::new();
         for j in 0..m {
             let t_4_1_prime = a_prime[j].scaled(&-c)
