@@ -18,6 +18,10 @@ pub struct PedersenCtx {
 
 impl PedersenCtx {
     pub fn new(seed: &[u8], ctx: CryptoContext, num_generators: usize) -> Self {
+        if num_generators == 0 {
+            panic!("Must allow at least one generator");
+        }
+
         let mut generators = Vec::new();
         let mut count: u128 = 0;
 
@@ -59,6 +63,16 @@ impl PedersenCtx {
         }
 
         Some(commitments)
+    }
+
+    pub fn commit_one(&self, x: &Scalar, r: &Scalar) -> Commitment {
+        let h = &self.generators[0];
+        Commitment {
+            index: 0,
+            g: self.base.clone(),
+            h: h.clone(),
+            value: self.base.scaled(&x) + h.scaled(&r),
+        }
     }
 
     pub fn try_parse_commitment(&self, value: &str) -> Result<Commitment, EncodingError> {
