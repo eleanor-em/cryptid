@@ -106,7 +106,8 @@ impl PrfEqDlogs {
 mod tests {
     use crate::elgamal::CryptoContext;
     use crate::zkp::{PrfKnowDlog, PrfEqDlogs};
-    use crate::{DalekScalar, Scalar};
+    use crate::Scalar;
+    use crate::scalar::DalekScalar;
 
     #[test]
     fn test_exp_sum() {

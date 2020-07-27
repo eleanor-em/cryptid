@@ -14,7 +14,7 @@ use num_bigint::BigUint;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PublicKey {
-    y: CurveElem,
+    pub(crate) y: CurveElem,
 }
 
 impl PublicKey {

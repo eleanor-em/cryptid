@@ -13,7 +13,7 @@ use crate::threshold::EncodingError;
 #[derive(Clone)]
 pub struct PedersenCtx {
     base: CurveElem,
-    generators: Vec<CurveElem>,
+    pub(crate) generators: Vec<CurveElem>,
 }
 
 impl PedersenCtx {
@@ -44,6 +44,10 @@ impl PedersenCtx {
             base: ctx.generator(),
             generators
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.generators.len()
     }
 
     pub fn commit(&self, xs: &[Scalar], rs: &[Scalar]) -> Option<Vec<Commitment>> {
@@ -95,10 +99,10 @@ impl PedersenCtx {
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Commitment {
-    index: usize,
+    pub(crate) index: usize,
     g: CurveElem,
     h: CurveElem,
-    value: CurveElem,
+    pub(crate) value: CurveElem,
 }
 
 impl Display for Commitment {

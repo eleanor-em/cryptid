@@ -6,10 +6,11 @@ use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 
-use crate::{CryptoError, Scalar, DalekScalar};
+use crate::{CryptoError, Scalar};
 use crate::base64_serde;
 use crate::elgamal::CryptoContext;
 use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
+use crate::scalar::DalekScalar;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(RistrettoPoint);

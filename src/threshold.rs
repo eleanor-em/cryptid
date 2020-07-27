@@ -9,8 +9,9 @@ use serde::export::Formatter;
 
 use crate::curve::{ CurveElem, Polynomial };
 use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
-use crate::{zkp, CryptoError, Scalar, DalekScalar};
+use crate::{zkp, CryptoError, Scalar};
 use crate::util::AsBase64;
+use crate::scalar::DalekScalar;
 
 #[derive(Clone, Copy, Debug)]
 pub enum EncodingError {
