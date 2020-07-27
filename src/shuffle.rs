@@ -55,8 +55,8 @@ impl Permutation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shuffle {
-    inputs: Vec<Ciphertext>,
-    outputs: Vec<Ciphertext>,
+    inputs: Vec<Vec<Ciphertext>>,
+    outputs: Vec<Vec<Ciphertext>>,
     factors: Vec<Scalar>,
     perm: Permutation,
 }
@@ -64,7 +64,7 @@ pub struct Shuffle {
 impl Shuffle {
     pub fn new(
         mut ctx: CryptoContext,
-        input: Vec<Ciphertext>,
+        inputs: Vec<Vec<Ciphertext>>,
         pubkey: &PublicKey
     ) -> Result<Self, CryptoError> {
         // The ring RNG doesn't let us generate within a range, so create a chacha20 generator
@@ -76,17 +76,17 @@ impl Shuffle {
             ChaCha20Rng::from_seed(buf)
         };
 
-        let perm = Permutation::new(&mut rng, input.len())?;
-        let mut new_cts = Vec::new();
+        let perm = Permutation::new(&mut rng, inputs.len())?;
+        let mut new_cts: Vec<Vec<Ciphertext>> = Vec::new();
         let mut factors = Vec::new();
-        for ct in input.iter() {
+        for cts in inputs.iter() {
             let r = ctx.random_power()?;
-            new_cts.push(pubkey.rerand(&ctx, &ct, &r));
+            new_cts.push(cts.iter().map(|ct| pubkey.rerand(&ctx, &ct, &r)).collect());
             factors.push(r);
         }
-        let output = (0..input.len()).map(|i| new_cts[perm.map[&i]].clone()).collect();
+        let outputs = (0..inputs.len()).map(|i| new_cts[perm.map[&i]].clone()).collect();
 
-        Ok(Self { inputs: input, outputs: output, factors, perm })
+        Ok(Self { inputs, outputs, factors, perm })
     }
 
     pub fn gen_proof(&self,
@@ -95,6 +95,7 @@ impl Shuffle {
                      pubkey: &PublicKey
     ) -> Result<ShuffleProof, CryptoError> {
         let n = self.perm.map.len();
+        let m = self.inputs[0].len();
         let h = &commit_ctx.generators[n];
         if commit_ctx.len() < n + 1 {
             return Err(CryptoError::InvalidGenCount);
@@ -104,13 +105,17 @@ impl Shuffle {
         // Generate challenges
         let challenges: Vec<_> = (0..n).map(|i| {
             let mut hash = Hasher::sha_256();
-            for ct in self.inputs.iter() {
-                hash.update(&ct.c1.as_bytes());
-                hash.update(&ct.c2.as_bytes());
+            for cts in self.inputs.iter() {
+                for ct in cts.iter() {
+                    hash.update(&ct.c1.as_bytes());
+                    hash.update(&ct.c2.as_bytes());
+                }
             }
-            for ct in self.outputs.iter() {
-                hash.update(&ct.c1.as_bytes());
-                hash.update(&ct.c2.as_bytes());
+            for cts in self.outputs.iter() {
+                for ct in cts.iter() {
+                    hash.update(&ct.c1.as_bytes());
+                    hash.update(&ct.c2.as_bytes());
+                }
             }
             for commit in commitments.iter() {
                 hash.update(&commit.as_bytes());
@@ -140,7 +145,9 @@ impl Shuffle {
         omegas.push(ctx.random_power()?);
         omegas.push(ctx.random_power()?);
         omegas.push(ctx.random_power()?);
-        omegas.push(ctx.random_power()?);
+        for _ in 0..m {
+            omegas.push(ctx.random_power()?);
+        }
 
         let mut omega_hats = Vec::new();
         let mut omega_primes = Vec::new();
@@ -154,11 +161,16 @@ impl Shuffle {
         let t_2 = ctx.g_to(&omegas[1]);
         let t_3 = ctx.g_to(&omegas[2])
             + (0..n).map(|i| commit_ctx.generators[i].scaled(&omega_primes[i])).sum();
-        // The paper has a mistake
-        let t_4_1 = ctx.g_to(&-omegas[3])
-            + (0..n).map(|i| self.outputs[i].c1.scaled(&omega_primes[i])).sum();
-        let t_4_2 = pubkey.y.scaled(&-omegas[3])
-            + (0..n).map(|i| self.outputs[i].c2.scaled(&omega_primes[i])).sum();
+
+        let mut t_4s = Vec::new();
+        // The paper has a mistake --- the first terms should be swapped for t_4_1 and t_4_2
+        for j in 0..self.outputs[0].len() {
+            let t_4_1 = ctx.g_to(&-omegas[j + 3])
+                + (0..n).map(|i| self.outputs[i][j].c1.scaled(&omega_primes[i])).sum();
+            let t_4_2 = pubkey.y.scaled(&-omegas[j + 3])
+                + (0..n).map(|i| self.outputs[i][j].c2.scaled(&omega_primes[i])).sum();
+            t_4s.push((t_4_1, t_4_2));
+        }
 
         let mut t_hats = Vec::new();
         let mut last_commit = h;
@@ -169,13 +181,17 @@ impl Shuffle {
 
         // Generate challenge
         let mut hash = Hasher::sha_256();
-        for ct in self.inputs.iter() {
-            hash.update(&ct.c1.as_bytes());
-            hash.update(&ct.c2.as_bytes());
+        for cts in self.inputs.iter() {
+            for ct in cts.iter() {
+                hash.update(&ct.c1.as_bytes());
+                hash.update(&ct.c2.as_bytes());
+            }
         }
-        for ct in self.outputs.iter() {
-            hash.update(&ct.c1.as_bytes());
-            hash.update(&ct.c2.as_bytes());
+        for cts in self.outputs.iter() {
+            for ct in cts.iter() {
+                hash.update(&ct.c1.as_bytes());
+                hash.update(&ct.c2.as_bytes());
+            }
         }
         for commit in commitments.iter() {
             hash.update(&commit.as_bytes());
@@ -186,9 +202,11 @@ impl Shuffle {
         hash = hash.and_update(&pubkey.y.as_bytes())
             .and_update(&t_1.as_bytes())
             .and_update(&t_2.as_bytes())
-            .and_update(&t_3.as_bytes())
-            .and_update(&t_4_1.as_bytes())
-            .and_update(&t_4_2.as_bytes());
+            .and_update(&t_3.as_bytes());
+        for (t_4_1, t_4_2) in t_4s.iter() {
+            hash.update(&t_4_1.as_bytes());
+            hash.update(&t_4_2.as_bytes());
+        }
         for t_hat in t_hats.iter() {
             hash.update(&t_hat.as_bytes());
         }
@@ -198,7 +216,8 @@ impl Shuffle {
         let s_1 = omegas[0] + c * r_bar;
         let s_2 = omegas[1] + c * r_hat;
         let s_3 = omegas[2] + c * r_tilde;
-        let s_4 = omegas[3] + c * r_prime;
+
+        let s_4s: Vec<_> = (0..m).map(|i| omegas[i + 3] + c * r_prime).collect();
 
         let mut s_hats = Vec::new();
         let mut s_primes = Vec::new();
@@ -211,13 +230,12 @@ impl Shuffle {
             t_1,
             t_2,
             t_3,
-            t_4_1,
-            t_4_2,
+            t_4s,
             t_hats,
             s_1,
             s_2,
             s_3,
-            s_4,
+            s_4s,
             s_hats,
             s_primes,
             commitments,
@@ -231,13 +249,12 @@ pub struct ShuffleProof {
     t_1: CurveElem,
     t_2: CurveElem,
     t_3: CurveElem,
-    t_4_1: CurveElem,
-    t_4_2: CurveElem,
+    t_4s: Vec<(CurveElem, CurveElem)>,
     t_hats: Vec<CurveElem>,
     s_1: Scalar,
     s_2: Scalar,
     s_3: Scalar,
-    s_4: Scalar,
+    s_4s: Vec<Scalar>,
     s_hats: Vec<Scalar>,
     s_primes: Vec<Scalar>,
     commitments: Vec<CurveElem>,
@@ -248,25 +265,30 @@ impl ShuffleProof {
     pub fn verify(&self,
                   ctx: &CryptoContext,
                   commit_ctx: &PedersenCtx,      // secondary auxiliary generators
-                  inputs: &[Ciphertext],
-                  outputs: &[Ciphertext],
+                  inputs: &[Vec<Ciphertext>],
+                  outputs: &[Vec<Ciphertext>],
                   pubkey: &PublicKey
     ) -> bool {
         if inputs.len() != outputs.len() {
             panic!("Shuffle input and output lengths do not match");
         }
         let n = inputs.len();
+        let m = inputs[0].len();
         let h = &commit_ctx.generators[n];
 
         let challenges: Vec<_> = (0..n).map(|i| {
             let mut hash = Hasher::sha_256();
-            for ct in inputs.iter() {
-                hash.update(&ct.c1.as_bytes());
-                hash.update(&ct.c2.as_bytes());
+            for cts in inputs.iter() {
+                for ct in cts.iter() {
+                    hash.update(&ct.c1.as_bytes());
+                    hash.update(&ct.c2.as_bytes());
+                }
             }
-            for ct in outputs.iter() {
-                hash.update(&ct.c1.as_bytes());
-                hash.update(&ct.c2.as_bytes());
+            for cts in outputs.iter() {
+                for ct in cts.iter() {
+                    hash.update(&ct.c1.as_bytes());
+                    hash.update(&ct.c2.as_bytes());
+                }
             }
             for commit in self.commitments.iter() {
                 hash.update(&commit.as_bytes());
@@ -280,17 +302,33 @@ impl ShuffleProof {
         let u = challenges.clone().into_iter().product();
         let c_hat = self.chain.commits.last().unwrap() - &h.scaled(&u);
         let c_tilde: CurveElem = (0..n).map(|i| self.commitments[i].scaled(&challenges[i])).sum();
-        let a_prime: CurveElem = (0..n).map(|i| inputs[i].c1.scaled(&challenges[i])).sum();
-        let b_prime: CurveElem = (0..n).map(|i| inputs[i].c2.scaled(&challenges[i])).sum();
+        let mut a_prime: Vec<_> = (0..m).map(|_| CurveElem::identity()).collect();
+        for (i, cts) in inputs.iter().enumerate() {
+            let cts: Vec<_> = cts.iter().map(|ct| ct.c1.scaled(&challenges[i])).collect();
+            for i in 0..m {
+                a_prime[i] += cts[i];
+            }
+        }
+        let mut b_prime: Vec<_> = (0..m).map(|_| CurveElem::identity()).collect();
+        for (i, cts) in inputs.iter().enumerate() {
+            let cts: Vec<_> = cts.iter().map(|ct| ct.c2.scaled(&challenges[i])).collect();
+            for i in 0..m {
+                b_prime[i] += cts[i];
+            }
+        }
 
         let mut hash = Hasher::sha_256();
-        for ct in inputs.iter() {
-            hash.update(&ct.c1.as_bytes());
-            hash.update(&ct.c2.as_bytes());
+        for cts in inputs.iter() {
+            for ct in cts.iter() {
+                hash.update(&ct.c1.as_bytes());
+                hash.update(&ct.c2.as_bytes());
+            }
         }
-        for ct in outputs.iter() {
-            hash.update(&ct.c1.as_bytes());
-            hash.update(&ct.c2.as_bytes());
+        for cts in outputs.iter() {
+            for ct in cts.iter() {
+                hash.update(&ct.c1.as_bytes());
+                hash.update(&ct.c2.as_bytes());
+            }
         }
         for commit in self.commitments.iter() {
             hash.update(&commit.as_bytes());
@@ -301,9 +339,11 @@ impl ShuffleProof {
         hash = hash.and_update(&pubkey.y.as_bytes())
             .and_update(&self.t_1.as_bytes())
             .and_update(&self.t_2.as_bytes())
-            .and_update(&self.t_3.as_bytes())
-            .and_update(&self.t_4_1.as_bytes())
-            .and_update(&self.t_4_2.as_bytes());
+            .and_update(&self.t_3.as_bytes());
+        for (t_4_1, t_4_2) in self.t_4s.iter() {
+            hash.update(&t_4_1.as_bytes());
+            hash.update(&t_4_2.as_bytes());
+        }
         for t_hat in self.t_hats.iter() {
             hash.update(&t_hat.as_bytes());
         }
@@ -316,12 +356,17 @@ impl ShuffleProof {
         let t_3_prime = c_tilde.scaled(&-c)
             + ctx.g_to(&self.s_3)
             + (0..n).map(|i| commit_ctx.generators[i].scaled(&self.s_primes[i])).sum();
-        let t_4_1_prime = a_prime.scaled(&-c)
-            + ctx.g_to(&-self.s_4)
-            + (0..n).map(|i| outputs[i].c1.scaled(&self.s_primes[i])).sum();
-        let t_4_2_prime = b_prime.scaled(&-c)
-            + pubkey.y.scaled(&-self.s_4)
-            + (0..n).map(|i| outputs[i].c2.scaled(&self.s_primes[i])).sum();
+
+        let mut t_4_primes = Vec::new();
+        for j in 0..m {
+            let t_4_1_prime = a_prime[j].scaled(&-c)
+                + ctx.g_to(&-self.s_4s[j])
+                + (0..n).map(|i| outputs[i][j].c1.scaled(&self.s_primes[i])).sum();
+            let t_4_2_prime = b_prime[j].scaled(&-c)
+                + pubkey.y.scaled(&-self.s_4s[j])
+                + (0..n).map(|i| outputs[i][j].c2.scaled(&self.s_primes[i])).sum();
+            t_4_primes.push((t_4_1_prime, t_4_2_prime));
+        }
 
         let mut t_hat_primes = Vec::new();
         let mut last_commit = h;
@@ -333,8 +378,7 @@ impl ShuffleProof {
         t_1_prime == self.t_1 &&
             t_2_prime == self.t_2 &&
             t_3_prime == self.t_3 &&
-            t_4_1_prime == self.t_4_1 &&
-            t_4_2_prime == self.t_4_2 &&
+            t_4_primes == self.t_4s &&
             t_hat_primes == self.t_hats
     }
 }
@@ -383,10 +427,13 @@ mod tests {
         let mut ctx = CryptoContext::new();
         let pubkey = PublicKey::new(ctx.random_elem().unwrap());
         let n = 4;
+        let m = 3;
 
         let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
-        let messages: Vec<_> = (0..n).map(|_| ctx.random_elem().unwrap()).collect();
-        let cts: Vec<_> = messages.iter().zip(factors).map(|(m, r)| pubkey.encrypt(&ctx, &m, &r)).collect();
+        let cts: Vec<_> = factors.iter().map(|r| {
+            let message = ctx.random_elem().unwrap();
+            (0..m).map(|_| pubkey.encrypt(&ctx, &message, &r)).collect()
+        }).collect();
 
         let shuffle1 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
         let shuffle2 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
@@ -404,11 +451,14 @@ mod tests {
             rng.fill(&mut seed).unwrap();
         }
         let pubkey = PublicKey::new(ctx.random_elem().unwrap());
-        let n = 100;
+        let n = 10;
+        let m = 3;
 
         let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
-        let messages: Vec<_> = (0..n).map(|_| ctx.random_elem().unwrap()).collect();
-        let cts: Vec<_> = messages.iter().zip(factors).map(|(m, r)| pubkey.encrypt(&ctx, &m, &r)).collect();
+        let cts: Vec<_> = factors.iter().map(|r| {
+            let message = ctx.random_elem().unwrap();
+            (0..m).map(|_| pubkey.encrypt(&ctx, &message, &r)).collect()
+        }).collect();
 
         let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
 
@@ -427,11 +477,14 @@ mod tests {
             rng.fill(&mut seed).unwrap();
         }
         let pubkey = PublicKey::new(ctx.random_elem().unwrap());
-        let n = 100;
+        let n = 10;
+        let m = 3;
 
         let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
-        let messages: Vec<_> = (0..n).map(|_| ctx.random_elem().unwrap()).collect();
-        let cts: Vec<_> = messages.iter().zip(factors).map(|(m, r)| pubkey.encrypt(&ctx, &m, &r)).collect();
+        let cts: Vec<_> = factors.iter().map(|r| {
+            let message = ctx.random_elem().unwrap();
+            (0..m).map(|_| pubkey.encrypt(&ctx, &message, &r)).collect()
+        }).collect();
 
         let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
         let shuffle2 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();

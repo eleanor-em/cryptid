@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 use std::iter::Sum;
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, AddAssign};
 
 use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
 use curve25519_dalek::traits::Identity;
@@ -116,6 +116,12 @@ impl Sub for &CurveElem {
 
     fn sub(self, rhs: Self) -> Self::Output {
         CurveElem(self.0 - rhs.0)
+    }
+}
+
+impl AddAssign<CurveElem> for CurveElem {
+    fn add_assign(&mut self, rhs: CurveElem) {
+        *self = *self + rhs;
     }
 }
 
