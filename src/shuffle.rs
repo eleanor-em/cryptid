@@ -369,6 +369,12 @@ impl ShuffleProof {
     }
 }
 
+impl ToString for ShuffleProof {
+    fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CommitChain {
     commits: Vec<CurveElem>,
