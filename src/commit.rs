@@ -9,6 +9,7 @@ use crate::elgamal::{CryptoContext, CurveElem};
 use crate::{Hasher, AsBase64};
 use crate::Scalar;
 use crate::threshold::EncodingError;
+use rand::RngCore;
 
 #[derive(Clone)]
 pub struct PedersenCtx {
@@ -17,6 +18,16 @@ pub struct PedersenCtx {
 }
 
 impl PedersenCtx {
+    pub fn from_rng(ctx: CryptoContext, num_generators: usize) -> Self {
+        let mut seed = [0; 64];
+        let rng = ctx.rng();
+        {
+            let mut rng = rng.lock().unwrap();
+            rng.fill_bytes(&mut seed);
+        }
+        Self::new(&seed, ctx, num_generators)
+    }
+
     pub fn new(seed: &[u8], ctx: CryptoContext, num_generators: usize) -> Self {
         if num_generators == 0 {
             panic!("Must allow at least one generator");
@@ -129,46 +140,39 @@ impl Commitment {
 mod tests {
     use crate::elgamal::CryptoContext;
     use crate::commit::{PedersenCtx, Commitment};
-    use ring::rand::SecureRandom;
+    use rand::RngCore;
 
     #[test]
     fn test_commit() {
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
         let rng = ctx.rng();
         {
-            let rng = rng.lock().unwrap();
-            rng.fill(&mut seed).unwrap();
+            let mut rng = rng.lock().unwrap();
+            rng.fill_bytes(&mut seed);
         }
 
         const N: usize = 5;
         let commit_ctx = PedersenCtx::new(&seed, ctx.clone(), N);
-        let xs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
-        let rs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
+        let xs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
+        let rs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
 
         let commitment = commit_ctx.commit(&xs, &rs).unwrap();
 
         assert!(commitment.iter().enumerate().all(|(i, c)| c.validate(&xs[i], &rs[i])));
 
-        let xs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
-        let rs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
+        let xs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
+        let rs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
         assert!(!commitment.iter().enumerate().all(|(i, c)| c.validate(&xs[i], &rs[i])));
     }
 
     #[test]
     fn test_commit_serde() {
-        let mut ctx = CryptoContext::new();
-        let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let rng = rng.lock().unwrap();
-            rng.fill(&mut seed).unwrap();
-        }
-
+        let mut ctx = CryptoContext::new().unwrap();
         const N: usize = 5;
-        let commit_ctx = PedersenCtx::new(&seed, ctx.clone(), N);
-        let xs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
-        let rs: Vec<_> = (0..N).map(|_| ctx.random_power().unwrap()).collect();
+        let commit_ctx = PedersenCtx::from_rng(ctx.clone(), N);
+        let xs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
+        let rs: Vec<_> = (0..N).map(|_| ctx.random_power()).collect();
 
         let commitment = commit_ctx.commit(&xs, &rs).unwrap();
 

@@ -1,6 +1,6 @@
 [package]
 name = "cryptid"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Eleanor McMurtry <elmcmurtry1@gmail.com>"]
 edition = "2018"
 description = "An implementation of the threshold ElGamal cryptosystem with zero-knowledge proofs, using Curve25519 as the group."

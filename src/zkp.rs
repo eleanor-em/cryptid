@@ -24,7 +24,7 @@ impl PrfKnowDlog {
     /// Proves that we know x such that y = g^x
     pub fn new(ctx: &mut CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Result<Self, CryptoError> {
         // Choose random commitment
-        let z = ctx.random_power()?;
+        let z = ctx.random_power();
         let blinded = base.scaled(&z);
         // Calculate the challenge
         let c = Self::challenge(base, result, &blinded);
@@ -79,7 +79,7 @@ impl PrfEqDlogs {
                result1: &CurveElem,
                result2: &CurveElem,
                power: &Scalar) -> Result<Self, CryptoError> {
-        let z = ctx.random_power()?;
+        let z = ctx.random_power();
         let blinded_base1 = base1.scaled(&z);
         let blinded_base2 = base2.scaled(&z);
         let c = Self::challenge(&base1, &base2, &result1, &result2, &blinded_base1, &blinded_base2);
@@ -111,9 +111,9 @@ mod tests {
 
     #[test]
     fn test_exp_sum() {
-        let mut ctx = CryptoContext::new();
-        let a = ctx.random_power().unwrap();
-        let b = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let a = ctx.random_power();
+        let b = ctx.random_power();
         let r = Scalar(a.0 + b.0);
 
         let x = ctx.g_to(&r);
@@ -123,8 +123,8 @@ mod tests {
 
     #[test]
     fn test_prf_know_dlog_complete() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_power();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
         let proof = PrfKnowDlog::new(&mut ctx, &g, &x, &y).unwrap();
@@ -134,8 +134,8 @@ mod tests {
 
     #[test]
     fn test_prof_know_dlog_sound() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_power();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
         let mut proof = PrfKnowDlog::new(&mut ctx, &g, &x, &y).unwrap();
@@ -146,13 +146,13 @@ mod tests {
 
     #[test]
     fn test_prf_eq_dlogs_complete() {
-        let mut ctx = CryptoContext::new();
-        let x1 = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x1 = ctx.random_power();
         let f = ctx.g_to(&x1);
-        let x2 = ctx.random_power().unwrap();
+        let x2 = ctx.random_power();
         let h = ctx.g_to(&x2);
 
-        let x = ctx.random_power().unwrap();
+        let x = ctx.random_power();
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
@@ -162,13 +162,13 @@ mod tests {
 
     #[test]
     fn test_prf_eq_dlogs_sound() {
-        let mut ctx = CryptoContext::new();
-        let x1 = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x1 = ctx.random_power();
         let f = ctx.g_to(&x1);
-        let x2 = ctx.random_power().unwrap();
+        let x2 = ctx.random_power();
         let h = ctx.g_to(&x2);
 
-        let x = ctx.random_power().unwrap();
+        let x = ctx.random_power();
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 

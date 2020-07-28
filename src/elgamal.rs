@@ -6,11 +6,14 @@ use std::sync::{Mutex, Arc};
 use ring::rand::SecureRandom;
 use serde::{Serialize, Deserialize};
 
-use crate::Scalar;
+use crate::{Scalar, AsBase64};
 use crate::{curve, CryptoError};
 use crate::threshold::EncodingError;
-use crate::util::{AsBase64, SCALAR_MAX_BYTES};
 use num_bigint::BigUint;
+use rand_chacha::ChaCha20Rng;
+use rand::{SeedableRng, RngCore};
+use curve25519_dalek::ristretto::RistrettoPoint;
+use std::ops::DerefMut;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PublicKey {
@@ -69,11 +72,11 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    fn new(ctx: &mut CryptoContext) -> Result<Self, CryptoError> {
-        let x_i = ctx.random_power()?;
+    fn new(ctx: &mut CryptoContext) -> Self {
+        let x_i = ctx.random_power();
         let y_i = ctx.g_to(&x_i);
         let pk = PublicKey::new(y_i);
-        Ok(Self { pk, x_i, y_i })
+        Self { pk, x_i, y_i }
     }
 }
 
@@ -126,7 +129,8 @@ pub type CurveElem = curve::CurveElem;
 
 #[derive(Debug)]
 pub struct CryptoContext {
-    rng: Arc<Mutex<ring::rand::SystemRandom>>,
+    // rng: Arc<Mutex<ring::rand::SystemRandom>>,
+    rng: Arc<Mutex<ChaCha20Rng>>,
     g: CurveElem,
 }
 
@@ -139,20 +143,28 @@ impl Clone for CryptoContext {
 }
 
 impl CryptoContext {
-    pub fn new() -> Self {
-        let rng = Arc::new(Mutex::new(ring::rand::SystemRandom::new()));
+    pub fn new() -> Result<Self, CryptoError> {
+        // Generate a ChaCha20 RNG from ring
+        let rng = {
+            let rng = ring::rand::SystemRandom::new();
+            let mut buf = [0; 32];
+            rng.fill(&mut buf).map_err(|e|  CryptoError::Unspecified(e))?;
+            Arc::new(Mutex::new(ChaCha20Rng::from_seed(buf)))
+        };
+
         let g = CurveElem::generator();
-        Self {
+
+        Ok(Self {
             rng,
             g
-        }
+        })
     }
 
     pub fn order() -> BigUint {
         BigUint::from_bytes_le(curve25519_dalek::constants::BASEPOINT_ORDER.as_bytes())
     }
 
-    pub fn rng(&self) -> Arc<Mutex<ring::rand::SystemRandom>> {
+    pub fn rng(&self) -> Arc<Mutex<ChaCha20Rng>> {
         self.rng.clone()
     }
 
@@ -160,37 +172,21 @@ impl CryptoContext {
         self.g.clone()
     }
 
-    pub fn gen_elgamal_key_pair(&mut self) -> Result<KeyPair, CryptoError> {
+    pub fn gen_elgamal_key_pair(&mut self) -> KeyPair {
         KeyPair::new(self)
     }
 
-    pub fn random_power(&mut self) -> Result<Scalar, CryptoError> {
-        let rng = self.rng.lock().unwrap();
-        // Generate 340 bit numbers and reduce mod group order
+    pub fn random_power(&mut self) -> Scalar {
+        // Generate 512 bit numbers and reduce mod group order
+        let mut rng = self.rng.lock().unwrap();
         let mut buf = [0; 64];
-        rng.fill(&mut buf)
-            .map_err(|e| CryptoError::Unspecified(e))?;
-        Ok(buf.into())
+        rng.fill_bytes(&mut buf);
+        buf.into()
     }
 
-    pub fn random_elem(&mut self) -> Result<CurveElem, CryptoError> {
-        let rng = self.rng.lock().unwrap();
-
-        loop {
-            let mut buf = [0; SCALAR_MAX_BYTES];
-            rng.fill(&mut buf)
-                .map_err(|e| CryptoError::Unspecified(e))?;
-
-            let mut final_buf = [0u8; 64];
-            for (i, byte) in buf.iter().enumerate() {
-                final_buf[i] = *byte;
-            }
-
-            let s: Scalar = final_buf.into();
-            if let Ok(elem) = CurveElem::try_from(s) {
-                return Ok(elem);
-            }
-        }
+    pub fn random_elem(&mut self) -> CurveElem {
+        let mut rng = self.rng.lock().unwrap();
+        curve::CurveElem(RistrettoPoint::random(rng.deref_mut()))
     }
 
     pub fn g_to(&self, power: &Scalar) -> CurveElem {
@@ -206,8 +202,8 @@ mod test {
 
     #[test]
     fn test_pubkey_serde() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_power();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         let encoded = y.as_base64();
@@ -217,14 +213,14 @@ mod test {
 
     #[test]
     fn test_ciphertext_serde() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_power();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
-        let r = ctx.random_power().unwrap();
+        let r = ctx.random_power();
         let m = ctx.g_to(&r);
 
-        let r = ctx.random_power().unwrap();
+        let r = ctx.random_power();
 
         let ct = y.encrypt(&ctx, &m.into(), &r);
 
@@ -233,18 +229,18 @@ mod test {
 
     #[test]
     fn test_homomorphism() {
-        let mut ctx = CryptoContext::new();
-        let x = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_power();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         // Construct two messages
-        let r1 = ctx.random_power().unwrap();
-        let r2 = ctx.random_power().unwrap();
+        let r1 = ctx.random_power();
+        let r2 = ctx.random_power();
         let m1 = ctx.g_to(&r1);
         let m2 = ctx.g_to(&r2);
 
-        let r1 = ctx.random_power().unwrap();
-        let r2 = ctx.random_power().unwrap();
+        let r1 = ctx.random_power();
+        let r2 = ctx.random_power();
 
         // Encrypt the messages
         let ct1 = y.encrypt(&ctx, &m1.into(), &r1);
@@ -252,7 +248,6 @@ mod test {
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);
-        // let decryption = &prod.c2 - &(prod.c1.scaled(&x));
         let decryption = prod.decrypt(&x);
 
         let combined = &m1 + &m2;

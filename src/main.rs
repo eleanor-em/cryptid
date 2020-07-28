@@ -2,24 +2,17 @@ use cryptid::elgamal::{CryptoContext, PublicKey, CurveElem};
 use cryptid::commit::PedersenCtx;
 use cryptid::shuffle::Shuffle;
 use cryptid::Scalar;
-use ring::rand::SecureRandom;
 use std::time::Instant;
 use rayon::prelude::*;
 
 fn main() {
     let then = Instant::now();
-    let mut ctx = CryptoContext::new();
-    let rng = ctx.rng();
-    let mut seed = [0; 64];
-    {
-        let rng = rng.lock().unwrap();
-        rng.fill(&mut seed).unwrap();
-    }
-    let pubkey = PublicKey::new(ctx.random_elem().unwrap());
-    let n = 2000;
+    let mut ctx = CryptoContext::new().unwrap();
+    let pubkey = PublicKey::new(ctx.random_elem());
+    let n = 10000;
     let m = 5;
 
-    let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
+    let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
     let cts: Vec<_> = factors.par_iter().map(|r| {
         (0..m).map(|_| pubkey.encrypt(&ctx, &CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)).collect()
     }).collect();
@@ -31,7 +24,7 @@ fn main() {
     let now = Instant::now();
     println!("shuffled {}x{} in {}ms", n, m, (now - then).as_millis());
 
-    let commit_ctx = PedersenCtx::new(&seed, ctx.clone(), n + 1);
+    let commit_ctx = PedersenCtx::from_rng(ctx.clone(), n + 1);
     let then = Instant::now();
     let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &pubkey).unwrap();
     let now = Instant::now();

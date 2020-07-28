@@ -13,7 +13,7 @@ use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use crate::scalar::DalekScalar;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct CurveElem(RistrettoPoint);
+pub struct CurveElem(pub(crate) RistrettoPoint);
 
 impl CurveElem {
     pub fn identity() -> Self {
@@ -192,11 +192,11 @@ pub struct Polynomial {
 impl Polynomial {
     pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
         let mut ctx = ctx.clone();
-        let x_i = ctx.random_power()?;
+        let x_i = ctx.random_power();
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);
         for _ in 1..k {
-            coefficients.push(ctx.random_power()?.0);
+            coefficients.push(ctx.random_power().0);
         }
 
         Ok(Polynomial { k, n, x_i, ctx, coefficients })
@@ -217,12 +217,12 @@ impl Polynomial {
 
 #[cfg(test)]
 mod tests {
-    use crate::elgamal;
+    use crate::elgamal::CryptoContext;
 
     #[test]
     fn test_curveelem_serde() {
-        let mut ctx = elgamal::CryptoContext::new();
-        let s = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let s = ctx.random_power();
         let elem = ctx.g_to(&s);
 
         let encoded = serde_json::to_string(&elem).unwrap();

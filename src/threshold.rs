@@ -468,7 +468,7 @@ mod test {
         const K: usize = 3;
         const N: usize = 5;
 
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let generator = ThresholdGenerator::new(&mut ctx, 1, K, N).unwrap();
         let commit = generator.get_commitment();
         let commit_decoded = commit.to_string().try_into().unwrap();
@@ -478,7 +478,7 @@ mod test {
 
     #[test]
     fn test_keygen() {
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let generators = run_generation(&mut ctx);
 
         // Store the intended public key
@@ -500,12 +500,12 @@ mod test {
 
     #[test]
     fn test_decrypt() {
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power().unwrap();
-        let m_r = ctx.random_power().unwrap();
+        let r = ctx.random_power();
+        let m_r = ctx.random_power();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 
@@ -522,12 +522,12 @@ mod test {
 
     #[test]
     fn test_decrypt_partial() {
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power().unwrap();
-        let m_r = ctx.random_power().unwrap();
+        let r = ctx.random_power();
+        let m_r = ctx.random_power();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 
@@ -547,12 +547,12 @@ mod test {
 
     #[test]
     fn test_decrypt_not_enough() {
-        let mut ctx = CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power().unwrap();
-        let m_r = ctx.random_power().unwrap();
+        let r = ctx.random_power();
+        let m_r = ctx.random_power();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 

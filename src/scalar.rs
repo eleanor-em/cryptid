@@ -177,14 +177,14 @@ impl Into<BigUint> for Scalar {
 
 #[cfg(test)]
 mod tests {
-    use crate::elgamal;
     use num_bigint::BigUint;
+    use crate::elgamal::CryptoContext;
 
     #[test]
     fn test_biguint_scalar() {
-        let mut ctx = elgamal::CryptoContext::new();
+        let mut ctx = CryptoContext::new().unwrap();
         for _ in 0..10 {
-            let s = ctx.random_power().unwrap();
+            let s = ctx.random_power();
             let x: BigUint = s.clone().into();
             assert_eq!(s, x.into());
         }
@@ -192,12 +192,11 @@ mod tests {
 
     #[test]
     fn test_scalar_serde() {
-        let mut ctx = elgamal::CryptoContext::new();
-        let s = ctx.random_power().unwrap();
+        let mut ctx = CryptoContext::new().unwrap();
+        let s = ctx.random_power();
 
         let encoded = serde_json::to_string(&s).unwrap();
         let decoded = serde_json::from_str(&encoded).unwrap();
         assert_eq!(s, decoded);
-
     }
 }

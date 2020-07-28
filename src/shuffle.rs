@@ -1,10 +1,8 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 use crate::elgamal::{CryptoContext, Ciphertext, PublicKey};
-use ring::rand::SecureRandom;
 use rand::Rng;
 use rand_chacha::ChaCha20Rng;
-use rand_chacha::rand_core::SeedableRng;
 use crate::{CryptoError, Scalar, Hasher};
 use crate::commit::PedersenCtx;
 use serde::{Serialize, Deserialize};
@@ -43,7 +41,7 @@ impl Permutation {
         let mut cs = HashMap::new();
         let mut rs = HashMap::new();
         for i in 0..n {
-            let r_i = ctx.random_power()?;
+            let r_i = ctx.random_power();
             cs.insert(self.map[i], ctx.g_to(&r_i) + commit_ctx.generators[i]);
             rs.insert(self.map[i], r_i);
         }
@@ -68,17 +66,12 @@ impl Shuffle {
         pubkey: &PublicKey
     ) -> Result<Self, CryptoError> {
         let n = inputs.len();
-        // The ring RNG doesn't let us generate within a range, so create a chacha20 generator
-        let mut rng = {
+        let perm = {
             let rng = ctx.rng();
-            let rng = rng.lock().unwrap();
-            let mut buf = [0; 32];
-            rng.fill(&mut buf).map_err(|e|  CryptoError::Unspecified(e))?;
-            ChaCha20Rng::from_seed(buf)
+            let mut rng = rng.lock().unwrap();
+            Permutation::new(&mut rng, n)?
         };
-
-        let perm = Permutation::new(&mut rng, n)?;
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect::<Result<_, _>>()?;
+        let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
         let new_cts: Vec<Vec<_>> = (&inputs, &factors).into_par_iter().map(|(cts, r)| {
             cts.iter().map(|ct| pubkey.rerand(&ctx, &ct, &r)).collect()
         }).collect();
@@ -152,18 +145,18 @@ impl Shuffle {
         let r_prime = (0..n).into_par_iter().map(|i| self.factors[i] * challenges[i]).sum();
 
         let mut omegas = Vec::new();
-        omegas.push(ctx.random_power()?);
-        omegas.push(ctx.random_power()?);
-        omegas.push(ctx.random_power()?);
+        omegas.push(ctx.random_power());
+        omegas.push(ctx.random_power());
+        omegas.push(ctx.random_power());
         for _ in 0..m {
-            omegas.push(ctx.random_power()?);
+            omegas.push(ctx.random_power());
         }
 
         let mut omega_hats = Vec::new();
         let mut omega_primes = Vec::new();
         for _ in 0..n {
-            omega_hats.push(ctx.random_power()?);
-            omega_primes.push(ctx.random_power()?);
+            omega_hats.push(ctx.random_power());
+            omega_primes.push(ctx.random_power());
         }
 
         // Generate commitments
@@ -393,7 +386,7 @@ impl CommitChain {
         let mut last_commit = initial.clone();
 
         for i in 0..challenges.len() {
-            let r_i = ctx.random_power()?;
+            let r_i = ctx.random_power();
             let c_i = ctx.g_to(&r_i) + last_commit.scaled(&challenges[i]);
             last_commit = c_i.clone();
             rs.push(r_i);
@@ -413,20 +406,19 @@ mod tests {
     use crate::elgamal::{CryptoContext, PublicKey};
     use crate::shuffle::Shuffle;
     use crate::commit::PedersenCtx;
-    use ring::rand::SecureRandom;
     use crate::curve::CurveElem;
     use crate::Scalar;
 
     #[test]
     fn test_shuffle_random() {
-        let mut ctx = CryptoContext::new();
-        let pubkey = PublicKey::new(ctx.random_elem().unwrap());
+        let mut ctx = CryptoContext::new().unwrap();
+        let pubkey = PublicKey::new(ctx.random_elem());
         let n = 4;
         let m = 3;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
+        let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
         let cts: Vec<_> = factors.iter().map(|r| {
-            let message = ctx.random_elem().unwrap();
+            let message = ctx.random_elem();
             (0..m).map(|_| pubkey.encrypt(&ctx, &message, &r)).collect()
         }).collect();
 
@@ -438,25 +430,19 @@ mod tests {
 
     #[test]
     fn test_shuffle_complete() {
-        let mut ctx = CryptoContext::new();
-        let rng = ctx.rng();
-        let mut seed = [0; 64];
-        {
-            let rng = rng.lock().unwrap();
-            rng.fill(&mut seed).unwrap();
-        }
-        let pubkey = PublicKey::new(ctx.random_elem().unwrap());
+        let mut ctx = CryptoContext::new().unwrap();
+        let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
         let m = 5;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
+        let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
         let cts: Vec<_> = factors.iter().map(|r| {
             (0..m).map(|_| pubkey.encrypt(&ctx, &CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)).collect()
         }).collect();
 
         let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
 
-        let commit_ctx = PedersenCtx::new(&seed, ctx.clone(), n + 1);
+        let commit_ctx = PedersenCtx::from_rng(ctx.clone(), n + 1);
         let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &pubkey).unwrap();
 
         assert!(proof.verify(&mut ctx, &commit_ctx, &shuffle.inputs, &shuffle.outputs, &pubkey));
@@ -464,18 +450,12 @@ mod tests {
 
     #[test]
     fn test_shuffle_sound() {
-        let mut ctx = CryptoContext::new();
-        let rng = ctx.rng();
-        let mut seed = [0; 64];
-        {
-            let rng = rng.lock().unwrap();
-            rng.fill(&mut seed).unwrap();
-        }
-        let pubkey = PublicKey::new(ctx.random_elem().unwrap());
+        let mut ctx = CryptoContext::new().unwrap();
+        let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
         let m = 3;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_power().unwrap()).collect();
+        let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
         let cts: Vec<_> = factors.iter().map(|r| {
             (0..m).map(|_| pubkey.encrypt(&ctx, &CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)).collect()
         }).collect();
@@ -483,7 +463,7 @@ mod tests {
         let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
         let shuffle2 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
 
-        let commit_ctx = PedersenCtx::new(&seed, ctx.clone(), n + 1);
+        let commit_ctx = PedersenCtx::from_rng(ctx.clone(), n + 1);
         let proof = shuffle2.gen_proof(&mut ctx, &commit_ctx, &pubkey).unwrap();
         assert!(!proof.verify(&mut ctx, &commit_ctx, &shuffle.inputs, &shuffle.outputs, &pubkey));
     }
