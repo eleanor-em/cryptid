@@ -7,6 +7,9 @@ use crate::{CryptoError, Scalar, Hasher};
 use crate::commit::PedersenCtx;
 use serde::{Serialize, Deserialize};
 use crate::curve::CurveElem;
+use std::fmt::Display;
+use std::fmt;
+use serde::export::Formatter;
 
 // See https://fc17.ifca.ai/voting/papers/voting17_HLKD17.pdf
 
@@ -369,9 +372,9 @@ impl ShuffleProof {
     }
 }
 
-impl ToString for ShuffleProof {
-    fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
+impl Display for ShuffleProof {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
     }
 }
 
