@@ -6,7 +6,7 @@ use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 
-use crate::{CryptoError, Scalar};
+use crate::{CryptoError, Scalar, Hasher};
 use crate::base64_serde;
 use crate::elgamal::CryptoContext;
 use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
@@ -18,6 +18,10 @@ pub struct CurveElem(RistrettoPoint);
 impl CurveElem {
     pub fn identity() -> Self {
         Self(RistrettoPoint::identity())
+    }
+
+    pub fn hash_by_ref(&self, hasher: &mut Hasher) {
+        hasher.update(self.0.compress().as_bytes());
     }
 
     pub fn as_bytes(&self) -> [u8; 32] {

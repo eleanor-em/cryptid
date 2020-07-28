@@ -12,6 +12,10 @@ pub(crate) type DalekScalar = InternalDalekScalar;
 pub struct Scalar(pub(crate) DalekScalar);
 
 impl Scalar {
+    pub fn zero() -> Self {
+        Self::from(0u8)
+    }
+
     pub fn one() -> Self {
         Self::from(1u8)
     }
