@@ -504,8 +504,8 @@ mod test {
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power();
-        let m_r = ctx.random_power();
+        let r = ctx.random_scalar();
+        let m_r = ctx.random_scalar();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 
@@ -526,8 +526,8 @@ mod test {
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power();
-        let m_r = ctx.random_power();
+        let r = ctx.random_scalar();
+        let m_r = ctx.random_scalar();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 
@@ -551,8 +551,8 @@ mod test {
         let mut parties = get_parties(&mut ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_power();
-        let m_r = ctx.random_power();
+        let r = ctx.random_scalar();
+        let m_r = ctx.random_scalar();
         let m = ctx.g_to(&m_r);
         let ct = pk.encrypt(&ctx, &m, &r);
 

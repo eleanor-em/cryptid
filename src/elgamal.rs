@@ -73,7 +73,7 @@ pub struct KeyPair {
 
 impl KeyPair {
     fn new(ctx: &mut CryptoContext) -> Self {
-        let x_i = ctx.random_power();
+        let x_i = ctx.random_scalar();
         let y_i = ctx.g_to(&x_i);
         let pk = PublicKey::new(y_i);
         Self { pk, x_i, y_i }
@@ -176,7 +176,7 @@ impl CryptoContext {
         KeyPair::new(self)
     }
 
-    pub fn random_power(&mut self) -> Scalar {
+    pub fn random_scalar(&mut self) -> Scalar {
         // Generate 512 bit numbers and reduce mod group order
         let mut rng = self.rng.lock().unwrap();
         let mut buf = [0; 64];
@@ -203,7 +203,7 @@ mod test {
     #[test]
     fn test_pubkey_serde() {
         let mut ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_power();
+        let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         let encoded = y.as_base64();
@@ -214,13 +214,13 @@ mod test {
     #[test]
     fn test_ciphertext_serde() {
         let mut ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_power();
+        let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
-        let r = ctx.random_power();
+        let r = ctx.random_scalar();
         let m = ctx.g_to(&r);
 
-        let r = ctx.random_power();
+        let r = ctx.random_scalar();
 
         let ct = y.encrypt(&ctx, &m.into(), &r);
 
@@ -230,17 +230,17 @@ mod test {
     #[test]
     fn test_homomorphism() {
         let mut ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_power();
+        let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
         // Construct two messages
-        let r1 = ctx.random_power();
-        let r2 = ctx.random_power();
+        let r1 = ctx.random_scalar();
+        let r2 = ctx.random_scalar();
         let m1 = ctx.g_to(&r1);
         let m2 = ctx.g_to(&r2);
 
-        let r1 = ctx.random_power();
-        let r2 = ctx.random_power();
+        let r1 = ctx.random_scalar();
+        let r2 = ctx.random_scalar();
 
         // Encrypt the messages
         let ct1 = y.encrypt(&ctx, &m1.into(), &r1);

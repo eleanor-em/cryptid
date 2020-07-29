@@ -135,6 +135,12 @@ impl Sum for CurveElem {
     }
 }
 
+impl From<RistrettoPoint> for CurveElem {
+    fn from(value: RistrettoPoint) -> Self {
+        Self(value)
+    }
+}
+
 impl TryFrom<Scalar> for CurveElem {
     type Error = CryptoError;
 
@@ -192,11 +198,11 @@ pub struct Polynomial {
 impl Polynomial {
     pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
         let mut ctx = ctx.clone();
-        let x_i = ctx.random_power();
+        let x_i = ctx.random_scalar();
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);
         for _ in 1..k {
-            coefficients.push(ctx.random_power().0);
+            coefficients.push(ctx.random_scalar().0);
         }
 
         Ok(Polynomial { k, n, x_i, ctx, coefficients })
@@ -222,7 +228,7 @@ mod tests {
     #[test]
     fn test_curveelem_serde() {
         let mut ctx = CryptoContext::new().unwrap();
-        let s = ctx.random_power();
+        let s = ctx.random_scalar();
         let elem = ctx.g_to(&s);
 
         let encoded = serde_json::to_string(&elem).unwrap();

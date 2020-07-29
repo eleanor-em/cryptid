@@ -4,6 +4,7 @@ use cryptid::shuffle::Shuffle;
 use cryptid::Scalar;
 use std::time::Instant;
 use rayon::prelude::*;
+use rand::RngCore;
 
 fn main() {
     let then = Instant::now();
@@ -12,7 +13,7 @@ fn main() {
     let n = 10000;
     let m = 5;
 
-    let factors: Vec<_> = (0..n).map(|_| ctx.random_power()).collect();
+    let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
     let cts: Vec<_> = factors.par_iter().map(|r| {
         (0..m).map(|_| pubkey.encrypt(&ctx, &CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)).collect()
     }).collect();
@@ -24,14 +25,21 @@ fn main() {
     let now = Instant::now();
     println!("shuffled {}x{} in {}ms", n, m, (now - then).as_millis());
 
-    let commit_ctx = PedersenCtx::from_rng(ctx.clone(), n + 1);
+    let mut seed = [0; 64];
+    let rng = ctx.rng();
+    {
+        let mut rng = rng.lock().unwrap();
+        rng.fill_bytes(&mut seed);
+    }
+    let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
     let then = Instant::now();
-    let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &pubkey).unwrap();
+    let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &generators, &pubkey).unwrap();
     let now = Instant::now();
     println!("produced proof of shuffle for {}x{} in {}ms", n, m, (now - then).as_millis());
 
     let then = Instant::now();
-    assert!(proof.verify(&mut ctx, &commit_ctx, shuffle.inputs(), shuffle.outputs(), &pubkey));
+    assert!(proof.verify(&mut ctx, &commit_ctx, &generators, shuffle.inputs(), shuffle.outputs(), &pubkey));
     let now = Instant::now();
     println!("verified proof of shuffle for {}x{} in {}ms", n, m, (now - then).as_millis());
+
 }

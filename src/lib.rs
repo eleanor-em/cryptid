@@ -17,19 +17,28 @@ pub use crate::scalar::Scalar;
 pub use crate::util::AsBase64;
 
 #[derive(Clone)]
-pub struct Hasher(digest::Context);
+pub struct Hasher {
+    ctx: digest::Context,
+    is_512: bool,
+}
 
 impl Hasher {
     pub fn sha_256() -> Self {
-        Self(digest::Context::new(&digest::SHA256))
+        Self {
+            ctx: digest::Context::new(&digest::SHA256),
+            is_512: false,
+        }
     }
 
     pub fn sha_512() -> Self {
-        Self(digest::Context::new(&digest::SHA512))
+        Self {
+            ctx: digest::Context::new(&digest::SHA512),
+            is_512: true,
+        }
     }
 
     pub fn update(&mut self, data: &[u8]) {
-        self.0.update(&data);
+        self.ctx.update(&data);
     }
 
     pub fn and_update(mut self, data: &[u8]) -> Self {
@@ -38,7 +47,17 @@ impl Hasher {
     }
 
     pub fn finish(self) -> Digest {
-        self.0.finish()
+        self.ctx.finish()
+    }
+
+    pub fn finish_64_bytes(self) -> Option<[u8; 64]> {
+        if self.is_512 {
+            let mut bytes = [0; 64];
+            bytes.copy_from_slice(&self.finish_vec());
+            Some(bytes)
+        } else {
+            None
+        }
     }
 
     pub fn finish_scalar(self) -> Scalar {
