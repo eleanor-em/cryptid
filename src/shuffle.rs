@@ -60,7 +60,7 @@ impl Permutation {
 pub struct Shuffle {
     inputs: Vec<Vec<Ciphertext>>,
     outputs: Vec<Vec<Ciphertext>>,
-    factors: Vec<Scalar>,
+    factors: Vec<Vec<Scalar>>,
     perm: Permutation,
 }
 
@@ -71,14 +71,20 @@ impl Shuffle {
         pubkey: &PublicKey
     ) -> Result<Self, CryptoError> {
         let n = inputs.len();
+        let m = inputs[0].len();
+
         let perm = {
             let rng = ctx.rng();
             let mut rng = rng.lock().unwrap();
             Permutation::new(&mut rng, n)?
         };
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
-        let new_cts: Vec<Vec<_>> = (&inputs, &factors).into_par_iter().map(|(cts, r)| {
-            cts.iter().map(|ct| pubkey.rerand(&ctx, &ct, &r)).collect()
+
+        let factors: Vec<Vec<_>> = (0..n).map(|_|
+            (0..m).map(|_| ctx.random_scalar()).collect()
+        ).collect();
+
+        let new_cts: Vec<Vec<_>> = (&inputs, &factors).into_par_iter().map(|(cts, rs)| {
+            cts.iter().zip(rs).map(|(ct, r)| pubkey.rerand(&ctx, &ct, &r)).collect()
         }).collect();
         let outputs = (0..n).map(|i| new_cts[perm.map[i]].clone()).collect();
 
@@ -159,7 +165,9 @@ impl Shuffle {
 
         let r_hat = (0..n).into_par_iter().map(|i| chain.rs[i] * vs[i]).sum();
         let r_tilde = (0..n).into_par_iter().map(|i| rs[i] * challenges[i]).sum();
-        let r_prime = (0..n).into_par_iter().map(|i| self.factors[i] * challenges[i]).sum();
+        let r_primes: Vec<_> = (0..m).map(|j|
+            (0..n).into_par_iter().map(|i| self.factors[i][j] * challenges[i]).sum()
+        ).collect();
 
         let mut omegas = Vec::new();
         omegas.push(ctx.random_scalar());
@@ -227,7 +235,7 @@ impl Shuffle {
         let s_3 = omegas[2] + c * r_tilde;
 
         let s_4s: Vec<_> = (0..m)
-            .map(|i| omegas[i + 3] + c * r_prime)
+            .map(|i| omegas[i + 3] + c * r_primes[i])
             .collect();
 
         let s_hats = (0..n)
