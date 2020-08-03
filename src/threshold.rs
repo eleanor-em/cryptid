@@ -228,6 +228,21 @@ impl Threshold for ThresholdGenerator {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PubkeyProof(CurveElem);
+
+impl AsBase64 for PubkeyProof {
+    type Error = CryptoError;
+
+    fn as_base64(&self) -> String {
+        self.0.as_base64()
+    }
+
+    fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
+        Ok(Self(CurveElem::try_from_base64(encoded)?))
+    }
+}
+
 pub struct ThresholdParty {
     ctx: CryptoContext,
     index: usize,
@@ -252,9 +267,6 @@ impl Clone for ThresholdParty {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PubkeyProof(CurveElem);
-
 impl ThresholdParty {
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
@@ -263,11 +275,6 @@ impl ThresholdParty {
     // Returns this party's share of the public key, but unscaled so it can be used for proofs.
     pub fn pubkey_proof(&self) -> PubkeyProof {
         PubkeyProof(self.pubkey_share)
-    }
-
-    // Returns this party's share of the public key, scaled with Lagrange multipliers.
-    pub fn pubkey_share(&self) -> CurveElem {
-        self.pubkey_share.scaled(&Scalar(lambda(1..self.trustee_count + 1, self.index)))
     }
 
     // Returns this party's share of a decryption.
@@ -488,11 +495,9 @@ mod test {
         let parties = complete_parties(generators);
 
         // Compute the final public key
-        let y: CurveElem = parties.iter()
-            .map(|party| party.pubkey_share())
-            .sum();
+        let y = parties[0].pubkey();
 
-        assert_eq!(pubkey, y);
+        assert_eq!(pubkey, y.y);
         parties.iter().for_each(|party| {
             assert_eq!(pubkey.as_base64(), party.pubkey.as_base64());
         });
