@@ -319,7 +319,7 @@ fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct DecryptShare {
     share: CurveElem,
     proof: zkp::PrfEqDlogs,
