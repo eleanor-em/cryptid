@@ -252,14 +252,17 @@ impl Clone for ThresholdParty {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PubkeyProof(CurveElem);
+
 impl ThresholdParty {
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
     }
 
     // Returns this party's share of the public key, but unscaled so it can be used for proofs.
-    pub fn pubkey_proof(&self) -> CurveElem {
-        self.pubkey_share
+    pub fn pubkey_proof(&self) -> PubkeyProof {
+        PubkeyProof(self.pubkey_share)
     }
 
     // Returns this party's share of the public key, scaled with Lagrange multipliers.
@@ -330,7 +333,7 @@ pub struct Decryption {
     min_trustees: usize,
     ctx: CryptoContext,
     ct: Ciphertext,
-    pubkeys: HashMap<usize, CurveElem>,
+    pubkey_proofs: HashMap<usize, PubkeyProof>,
     dec_shares: HashMap<usize, DecryptShare>,
 }
 
@@ -340,27 +343,27 @@ impl Decryption {
             min_trustees,
             ctx: ctx.clone(),
             ct: ct.clone(),
-            pubkeys: HashMap::new(),
+            pubkey_proofs: HashMap::new(),
             dec_shares: HashMap::new(),
         }
     }
 
-    pub fn add_share(&mut self, party_id: usize, party_pubkey_share: &CurveElem, share: &DecryptShare) {
+    pub fn add_share(&mut self, party_id: usize, party_pubkey_proof: &PubkeyProof, share: &DecryptShare) {
         self.dec_shares.insert(party_id, share.clone());
-        self.pubkeys.insert(party_id, party_pubkey_share.clone());
+        self.pubkey_proofs.insert(party_id, party_pubkey_proof.clone());
     }
 
     fn verify(&self) -> bool {
         let mut results = self.dec_shares.keys()
-            .map(|index| (&self.dec_shares[index], &self.pubkeys[index]))
-            .map(|(share, pubkey_share)| {
+            .map(|index| (&self.dec_shares[index], &self.pubkey_proofs[index]))
+            .map(|(share, pubkey_proof)| {
                 let proof = &share.proof;
 
                 // Verify the proof, and that the parameters are what they're supposed to be
                 proof.verify()
                     && proof.base1 == self.ctx.generator()
                     && proof.base2 == self.ct.c1
-                    && proof.result1 == *pubkey_share
+                    && proof.result1 == pubkey_proof.0
                     && proof.result2 == share.share
             });
 
@@ -511,7 +514,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_share, &share);
+                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
             });
 
         assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
@@ -535,7 +538,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_share, &share);
+                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
             });
 
         assert!(decrypted.verify());
@@ -560,7 +563,7 @@ mod test {
         parties.iter_mut()
             .for_each(|party| {
                 let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_share, &share);
+                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
             });
 
         assert!(!decrypted.verify());
