@@ -94,11 +94,11 @@ impl ThresholdGenerator {
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
-    pub fn new(ctx: &mut CryptoContext, index: usize, min_trustees: usize, trustee_count: usize)
+    pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize)
                -> Result<Self, CryptoError> {
         if index > 0 && index <= trustee_count {
-            let mut ctx = ctx.clone();
-            let f_i = Polynomial::random(&mut ctx, min_trustees, trustee_count)?;
+            let ctx = ctx.clone();
+            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count)?;
             let index = index as usize;
             let min_trustees = min_trustees as usize;
             let trustee_count = trustee_count as usize;
@@ -408,7 +408,7 @@ mod test {
     use std::convert::TryInto;
     use crate::util::AsBase64;
 
-    fn run_generation(ctx: &mut CryptoContext) -> Vec<ThresholdGenerator> {
+    fn run_generation(ctx: &CryptoContext) -> Vec<ThresholdGenerator> {
         const K: usize = 3;
         const N: usize = 5;
 
@@ -459,7 +459,7 @@ mod test {
             .collect()
     }
 
-    fn get_parties(ctx: &mut CryptoContext) -> Vec<ThresholdParty> {
+    fn get_parties(ctx: &CryptoContext) -> Vec<ThresholdParty> {
         complete_parties(run_generation(ctx))
     }
 
@@ -468,8 +468,8 @@ mod test {
         const K: usize = 3;
         const N: usize = 5;
 
-        let mut ctx = CryptoContext::new().unwrap();
-        let generator = ThresholdGenerator::new(&mut ctx, 1, K, N).unwrap();
+        let ctx = CryptoContext::new().unwrap();
+        let generator = ThresholdGenerator::new(&ctx, 1, K, N).unwrap();
         let commit = generator.get_commitment();
         let commit_decoded = commit.to_string().try_into().unwrap();
 
@@ -478,8 +478,8 @@ mod test {
 
     #[test]
     fn test_keygen() {
-        let mut ctx = CryptoContext::new().unwrap();
-        let generators = run_generation(&mut ctx);
+        let ctx = CryptoContext::new().unwrap();
+        let generators = run_generation(&ctx);
 
         // Store the intended public key
         let pubkey: CurveElem = generators.iter().map(|party| {
@@ -500,8 +500,8 @@ mod test {
 
     #[test]
     fn test_decrypt() {
-        let mut ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&mut ctx);
+        let ctx = CryptoContext::new().unwrap();
+        let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_scalar();
@@ -522,8 +522,8 @@ mod test {
 
     #[test]
     fn test_decrypt_partial() {
-        let mut ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&mut ctx);
+        let ctx = CryptoContext::new().unwrap();
+        let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_scalar();
@@ -547,8 +547,8 @@ mod test {
 
     #[test]
     fn test_decrypt_not_enough() {
-        let mut ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&mut ctx);
+        let ctx = CryptoContext::new().unwrap();
+        let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
         let r = ctx.random_scalar();

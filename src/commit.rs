@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_commit() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
         let rng = ctx.rng();
         {
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_commit_serde() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
         let rng = ctx.rng();
         {

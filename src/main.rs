@@ -8,7 +8,7 @@ use rand::RngCore;
 
 fn main() {
     let then = Instant::now();
-    let mut ctx = CryptoContext::new().unwrap();
+    let ctx = CryptoContext::new().unwrap();
     let pubkey = PublicKey::new(ctx.random_elem());
     let n = 10000;
     let m = 6;
@@ -33,12 +33,12 @@ fn main() {
     }
     let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
     let then = Instant::now();
-    let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &generators, &pubkey).unwrap();
+    let proof = shuffle.gen_proof(&ctx, &commit_ctx, &generators, &pubkey).unwrap();
     let now = Instant::now();
     println!("produced proof of shuffle for {}x{} in {}ms", n, m, (now - then).as_millis());
 
     let then = Instant::now();
-    assert!(proof.verify(&mut ctx, &commit_ctx, &generators, shuffle.inputs(), shuffle.outputs(), &pubkey));
+    assert!(proof.verify(&ctx, &commit_ctx, &generators, shuffle.inputs(), shuffle.outputs(), &pubkey));
     let now = Instant::now();
     println!("verified proof of shuffle for {}x{} in {}ms", n, m, (now - then).as_millis());
 }

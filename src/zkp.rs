@@ -25,7 +25,7 @@ impl PrfKnowDlog {
     }
 
     /// Proves that we know x such that y = g^x
-    pub fn new(ctx: &mut CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Result<Self, CryptoError> {
+    pub fn new(ctx: &CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Result<Self, CryptoError> {
         // Choose random commitment
         let z = ctx.random_scalar();
         let blinded = base.scaled(&z);
@@ -79,7 +79,7 @@ impl PrfEqDlogs {
     }
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x
-    pub fn new(ctx: &mut CryptoContext,
+    pub fn new(ctx: &CryptoContext,
                base1: &CurveElem,
                base2: &CurveElem,
                result1: &CurveElem,
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_exp_sum() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let a = ctx.random_scalar();
         let b = ctx.random_scalar();
         let r = Scalar(a.0 + b.0);
@@ -129,22 +129,22 @@ mod tests {
 
     #[test]
     fn test_prf_know_dlog_complete() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
-        let proof = PrfKnowDlog::new(&mut ctx, &g, &x, &y).unwrap();
+        let proof = PrfKnowDlog::new(&ctx, &g, &x, &y).unwrap();
 
         assert!(proof.verify().unwrap());
     }
 
     #[test]
     fn test_prof_know_dlog_sound() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
-        let mut proof = PrfKnowDlog::new(&mut ctx, &g, &x, &y).unwrap();
+        let mut proof = PrfKnowDlog::new(&ctx, &g, &x, &y).unwrap();
         proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify().unwrap());
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_prf_eq_dlogs_complete() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x1 = ctx.random_scalar();
         let f = ctx.g_to(&x1);
         let x2 = ctx.random_scalar();
@@ -162,13 +162,13 @@ mod tests {
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let proof = PrfEqDlogs::new(&mut ctx, &f, &h, &v, &w, &x).unwrap();
+        let proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x).unwrap();
         assert!(proof.verify().unwrap());
     }
 
     #[test]
     fn test_prf_eq_dlogs_sound() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x1 = ctx.random_scalar();
         let f = ctx.g_to(&x1);
         let x2 = ctx.random_scalar();
@@ -178,7 +178,7 @@ mod tests {
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let mut proof = PrfEqDlogs::new(&mut ctx, &f, &h, &v, &w, &x).unwrap();
+        let mut proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x).unwrap();
         proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify().unwrap());

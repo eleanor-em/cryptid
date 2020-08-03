@@ -196,8 +196,8 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
-    pub fn random(ctx: &mut CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
-        let mut ctx = ctx.clone();
+    pub fn random(ctx: &CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
+        let ctx = ctx.clone();
         let x_i = ctx.random_scalar();
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_curveelem_serde() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let s = ctx.random_scalar();
         let elem = ctx.g_to(&s);
 

@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_biguint_scalar() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         for _ in 0..10 {
             let s = ctx.random_scalar();
             let x: BigUint = s.clone().into();
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_scalar_serde() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let s = ctx.random_scalar();
 
         let encoded = serde_json::to_string(&s).unwrap();

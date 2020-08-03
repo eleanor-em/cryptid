@@ -72,7 +72,7 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    fn new(ctx: &mut CryptoContext) -> Self {
+    fn new(ctx: &CryptoContext) -> Self {
         let x_i = ctx.random_scalar();
         let y_i = ctx.g_to(&x_i);
         let pk = PublicKey::new(y_i);
@@ -172,11 +172,11 @@ impl CryptoContext {
         self.g.clone()
     }
 
-    pub fn gen_elgamal_key_pair(&mut self) -> KeyPair {
+    pub fn gen_elgamal_key_pair(&self) -> KeyPair {
         KeyPair::new(self)
     }
 
-    pub fn random_scalar(&mut self) -> Scalar {
+    pub fn random_scalar(&self) -> Scalar {
         // Generate 512 bit numbers and reduce mod group order
         let mut rng = self.rng.lock().unwrap();
         let mut buf = [0; 64];
@@ -184,7 +184,7 @@ impl CryptoContext {
         buf.into()
     }
 
-    pub fn random_elem(&mut self) -> CurveElem {
+    pub fn random_elem(&self) -> CurveElem {
         let mut rng = self.rng.lock().unwrap();
         curve::CurveElem(RistrettoPoint::random(rng.deref_mut()))
     }
@@ -202,7 +202,7 @@ mod test {
 
     #[test]
     fn test_pubkey_serde() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
@@ -213,7 +213,7 @@ mod test {
 
     #[test]
     fn test_ciphertext_serde() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 
@@ -229,7 +229,7 @@ mod test {
 
     #[test]
     fn test_homomorphism() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
         let y = PublicKey::new(ctx.g_to(&x).into());
 

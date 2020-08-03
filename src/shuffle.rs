@@ -34,7 +34,7 @@ impl Permutation {
 
     // Produces a commitment to the permutation matrix
     fn commit(&self,
-              ctx: &mut CryptoContext,
+              ctx: &CryptoContext,
               commit_ctx: &PedersenCtx,
               generators: &[CurveElem]
     ) -> Result<(Vec<CurveElem>, Vec<Scalar>), CryptoError> {
@@ -68,7 +68,7 @@ const SHUFFLE_TAG: &'static str = "SHUFFLE_PROOF";
 
 impl Shuffle {
     pub fn new(
-        mut ctx: CryptoContext,
+        ctx: CryptoContext,
         inputs: Vec<Vec<Ciphertext>>,
         pubkey: &PublicKey
     ) -> Result<Self, CryptoError> {
@@ -102,7 +102,7 @@ impl Shuffle {
     }
 
     pub fn gen_proof(&self,
-                     ctx: &mut CryptoContext,
+                     ctx: &CryptoContext,
                      commit_ctx: &PedersenCtx,
                      generators: &[CurveElem],
                      pubkey: &PublicKey
@@ -424,7 +424,7 @@ struct CommitChain {
 
 impl CommitChain {
     fn new(
-        ctx: &mut CryptoContext,
+        ctx: &CryptoContext,
         commit_ctx: &PedersenCtx,
         challenges: &[Scalar]
     ) -> Result<Self, CryptoError> {
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_shuffle_random() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 4;
         let m = 3;
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_shuffle_complete() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
         let m = 5;
@@ -497,14 +497,14 @@ mod tests {
             rng.fill_bytes(&mut seed);
         }
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
-        let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &generators, &pubkey).unwrap();
+        let proof = shuffle.gen_proof(&ctx, &commit_ctx, &generators, &pubkey).unwrap();
 
-        assert!(proof.verify(&mut ctx, &commit_ctx, &generators, &shuffle.inputs, &shuffle.outputs, &pubkey));
+        assert!(proof.verify(&ctx, &commit_ctx, &generators, &shuffle.inputs, &shuffle.outputs, &pubkey));
     }
 
     #[test]
     fn test_shuffle_sound() {
-        let mut ctx = CryptoContext::new().unwrap();
+        let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
         let m = 3;
@@ -524,7 +524,7 @@ mod tests {
             rng.fill_bytes(&mut seed);
         }
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
-        let proof = shuffle.gen_proof(&mut ctx, &commit_ctx, &generators, &pubkey).unwrap();
-        assert!(!proof.verify(&mut ctx, &commit_ctx, &generators, &shuffle2.inputs, &shuffle2.outputs, &pubkey));
+        let proof = shuffle.gen_proof(&ctx, &commit_ctx, &generators, &pubkey).unwrap();
+        assert!(!proof.verify(&ctx, &commit_ctx, &generators, &shuffle2.inputs, &shuffle2.outputs, &pubkey));
     }
 }
