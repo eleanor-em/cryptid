@@ -252,7 +252,7 @@ impl Clone for ThresholdParty {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PubkeyProof(CurveElem);
 
 impl ThresholdParty {
