@@ -160,6 +160,12 @@ impl From<CurveElem> for Scalar {
     }
 }
 
+impl From<&CurveElem> for Scalar {
+    fn from(value: &CurveElem) -> Self {
+        Self::from(value.as_bytes())
+    }
+}
+
 impl From<BigUint> for Scalar {
     fn from(s: BigUint) -> Self {
         let mut s = s.to_bytes_le();
