@@ -269,12 +269,12 @@ impl ThresholdParty {
     }
 
     // Returns this party's share of a decryption.
-    pub fn decrypt_share(&mut self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
+    pub fn decrypt_share(&self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
         let dec_share = ct.c1.scaled(&self.secret_share);
         let g = self.ctx.generator();
 
         let proof = zkp::PrfEqDlogs::new(
-            &mut self.ctx,
+            &self.ctx,
             &g,
             &ct.c1,
             &self.pubkey_share,
