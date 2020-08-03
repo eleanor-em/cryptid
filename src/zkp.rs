@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{CryptoError, Hasher, Scalar};
+use crate::{Hasher, Scalar};
 use crate::curve::CurveElem;
 use crate::elgamal::CryptoContext;
 
@@ -25,7 +25,7 @@ impl PrfKnowDlog {
     }
 
     /// Proves that we know x such that y = g^x
-    pub fn new(ctx: &CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Result<Self, CryptoError> {
+    pub fn new(ctx: &CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Self {
         // Choose random commitment
         let z = ctx.random_scalar();
         let blinded = base.scaled(&z);
@@ -33,17 +33,17 @@ impl PrfKnowDlog {
         let c = Self::challenge(base, result, &blinded);
         let r = Scalar(z.0 + c.0 * power.0);
 
-        Ok(Self {
+        Self {
             base: base.clone(),
             result: result.clone(),
             blinded_base: blinded,
             r,
-        })
+        }
     }
 
-    pub fn verify(&self) -> Result<bool, CryptoError> {
+    pub fn verify(&self) -> bool {
         let c = Self::challenge(&self.base, &self.result, &self.blinded_base);
-        Ok(self.base.scaled(&self.r) == &self.blinded_base + &self.result.scaled(&c))
+        self.base.scaled(&self.r) == &self.blinded_base + &self.result.scaled(&c)
     }
 }
 
@@ -84,13 +84,13 @@ impl PrfEqDlogs {
                base2: &CurveElem,
                result1: &CurveElem,
                result2: &CurveElem,
-               power: &Scalar) -> Result<Self, CryptoError> {
+               power: &Scalar) -> Self {
         let z = ctx.random_scalar();
         let blinded_base1 = base1.scaled(&z);
         let blinded_base2 = base2.scaled(&z);
         let c = Self::challenge(&base1, &base2, &result1, &result2, &blinded_base1, &blinded_base2);
         let r = Scalar(z.0 + c.0 * power.0);
-        Ok(Self {
+        Self {
             result1: result1.clone(),
             base1: base1.clone(),
             result2: result2.clone(),
@@ -98,13 +98,13 @@ impl PrfEqDlogs {
             blinded_base1,
             blinded_base2,
             r
-        })
+        }
     }
 
-    pub fn verify(&self) -> Result<bool, CryptoError> {
+    pub fn verify(&self) -> bool {
         let c = Self::challenge(&self.base1, &self.base2, &self.result1, &self.result2, &self.blinded_base1, &self.blinded_base2);
-        Ok(self.base1.scaled(&self.r) == &self.blinded_base1 + &self.result1.scaled(&c)
-            && self.base2.scaled(&self.r) == &self.blinded_base2 + &self.result2.scaled(&c))
+        self.base1.scaled(&self.r) == &self.blinded_base1 + &self.result1.scaled(&c)
+            && self.base2.scaled(&self.r) == &self.blinded_base2 + &self.result2.scaled(&c)
     }
 }
 
@@ -133,9 +133,9 @@ mod tests {
         let x = ctx.random_scalar();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
-        let proof = PrfKnowDlog::new(&ctx, &g, &x, &y).unwrap();
+        let proof = PrfKnowDlog::new(&ctx, &g, &x, &y);
 
-        assert!(proof.verify().unwrap());
+        assert!(proof.verify());
     }
 
     #[test]
@@ -144,10 +144,10 @@ mod tests {
         let x = ctx.random_scalar();
         let y = ctx.g_to(&x);
         let g = ctx.generator();
-        let mut proof = PrfKnowDlog::new(&ctx, &g, &x, &y).unwrap();
+        let mut proof = PrfKnowDlog::new(&ctx, &g, &x, &y);
         proof.r.0 += &DalekScalar::one();
 
-        assert!(!proof.verify().unwrap());
+        assert!(!proof.verify());
     }
 
     #[test]
@@ -162,8 +162,8 @@ mod tests {
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x).unwrap();
-        assert!(proof.verify().unwrap());
+        let proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x);
+        assert!(proof.verify());
     }
 
     #[test]
@@ -178,9 +178,9 @@ mod tests {
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let mut proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x).unwrap();
+        let mut proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x);
         proof.r.0 += &DalekScalar::one();
 
-        assert!(!proof.verify().unwrap());
+        assert!(!proof.verify());
     }
 }

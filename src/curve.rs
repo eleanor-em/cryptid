@@ -196,7 +196,7 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
-    pub fn random(ctx: &CryptoContext, k: usize, n: usize) -> Result<Polynomial, CryptoError> {
+    pub fn random(ctx: &CryptoContext, k: usize, n: usize) -> Polynomial {
         let ctx = ctx.clone();
         let x_i = ctx.random_scalar();
         let mut coefficients = Vec::with_capacity(k);
@@ -205,7 +205,7 @@ impl Polynomial {
             coefficients.push(ctx.random_scalar().0);
         }
 
-        Ok(Polynomial { k, n, x_i, ctx, coefficients })
+        Polynomial { k, n, x_i, ctx, coefficients }
     }
 
     pub fn get_public_params(&self) -> Vec<CurveElem> {

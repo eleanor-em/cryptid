@@ -94,11 +94,10 @@ impl ThresholdGenerator {
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
-    pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize)
-               -> Result<Self, CryptoError> {
+    pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize) -> Self {
         if index > 0 && index <= trustee_count {
             let ctx = ctx.clone();
-            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count)?;
+            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count);
             let index = index as usize;
             let min_trustees = min_trustees as usize;
             let trustee_count = trustee_count as usize;
@@ -107,9 +106,9 @@ impl ThresholdGenerator {
             let commitments = HashMap::new();
             let pk_parts = Vec::new();
 
-            Ok(Self { ctx, index, polynomial: f_i, min_trustees, trustee_count, shares, commitments, pk_parts })
+            Self { ctx, index, polynomial: f_i, min_trustees, trustee_count, shares, commitments, pk_parts }
         } else {
-            Err(CryptoError::InvalidId)
+            panic!("Index must be between 1 and trustee_count inclusive.");
         }
     }
 
@@ -269,7 +268,7 @@ impl ThresholdParty {
     }
 
     // Returns this party's share of a decryption.
-    pub fn decrypt_share(&self, ct: &Ciphertext) -> Result<DecryptShare, CryptoError> {
+    pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
         let dec_share = ct.c1.scaled(&self.secret_share);
         let g = self.ctx.generator();
 
@@ -279,9 +278,9 @@ impl ThresholdParty {
             &ct.c1,
             &self.pubkey_share,
             &dec_share,
-            &self.secret_share)?;
+            &self.secret_share);
 
-        Ok(DecryptShare { share: dec_share, proof })
+        DecryptShare { share: dec_share, proof }
     }
 
     pub fn index(&self) -> usize {
@@ -351,22 +350,21 @@ impl Decryption {
         self.pubkeys.insert(party_id, party_pubkey_share.clone());
     }
 
-    fn verify(&self) -> Result<bool, CryptoError> {
-        let results = self.dec_shares.keys()
+    fn verify(&self) -> bool {
+        let mut results = self.dec_shares.keys()
             .map(|index| (&self.dec_shares[index], &self.pubkeys[index]))
             .map(|(share, pubkey_share)| {
                 let proof = &share.proof;
 
                 // Verify the proof, and that the parameters are what they're supposed to be
-                Ok(proof.verify()?
+                proof.verify()
                     && proof.base1 == self.ctx.generator()
                     && proof.base2 == self.ct.c1
                     && proof.result1 == *pubkey_share
-                    && proof.result2 == share.share)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                    && proof.result2 == share.share
+            });
 
-        Ok(self.is_complete() && results.into_iter().all(identity))
+        self.is_complete() && results.all(identity)
     }
 }
 
@@ -380,7 +378,7 @@ impl Threshold for Decryption {
 
     fn finish(&self) -> Result<Scalar, CryptoError> {
         if self.is_complete() {
-            if self.verify()? {
+            if self.verify() {
                 let dec_factor = self.dec_shares.keys()
                     .map(|index| (index, &self.dec_shares[index]))
                     .map(|(index, share)| {
@@ -414,7 +412,7 @@ mod test {
 
         // Generate N parties
         let mut generators: Vec<_> = (1..N + 1)
-            .map(|i| ThresholdGenerator::new(ctx, i, K, N).unwrap())
+            .map(|i| ThresholdGenerator::new(ctx, i, K, N))
             .collect();
 
         // Generate the commitments
@@ -469,7 +467,7 @@ mod test {
         const N: usize = 5;
 
         let ctx = CryptoContext::new().unwrap();
-        let generator = ThresholdGenerator::new(&ctx, 1, K, N).unwrap();
+        let generator = ThresholdGenerator::new(&ctx, 1, K, N);
         let commit = generator.get_commitment();
         let commit_decoded = commit.to_string().try_into().unwrap();
 
@@ -513,7 +511,7 @@ mod test {
 
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct);
                 decrypted.add_share(party.index, &party.pubkey_share, &share);
             });
 
@@ -537,11 +535,11 @@ mod test {
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct);
                 decrypted.add_share(party.index, &party.pubkey_share, &share);
             });
 
-        assert!(decrypted.verify().unwrap());
+        assert!(decrypted.verify());
         assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
@@ -562,11 +560,11 @@ mod test {
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut()
             .for_each(|party| {
-                let share = party.decrypt_share(&ct).unwrap();
+                let share = party.decrypt_share(&ct);
                 decrypted.add_share(party.index, &party.pubkey_share, &share);
             });
 
-        assert!(!decrypted.verify().unwrap());
+        assert!(!decrypted.verify());
         assert!(decrypted.finish().is_err())
     }
 }
