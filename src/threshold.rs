@@ -345,7 +345,7 @@ impl Decryption {
         }
     }
 
-    pub fn add_share(&mut self, party_id: usize, party_pubkey_share: &CurveElem, share: &DecryptShare){
+    pub fn add_share(&mut self, party_id: usize, party_pubkey_share: &CurveElem, share: &DecryptShare) {
         self.dec_shares.insert(party_id, share.clone());
         self.pubkeys.insert(party_id, party_pubkey_share.clone());
     }
@@ -370,13 +370,13 @@ impl Decryption {
 
 impl Threshold for Decryption {
     type Error = CryptoError;
-    type Destination = Scalar;
+    type Destination = CurveElem;
 
     fn is_complete(&self) -> bool {
         self.dec_shares.len() as usize >= self.min_trustees
     }
 
-    fn finish(&self) -> Result<Scalar, CryptoError> {
+    fn finish(&self) -> Result<Self::Destination, Self::Error> {
         if self.is_complete() {
             if self.verify() {
                 let dec_factor = self.dec_shares.keys()
@@ -387,8 +387,7 @@ impl Threshold for Decryption {
                         share.share.scaled(&lagrange)
                     })
                     .sum();
-                let plaintext = self.ct.c2 - dec_factor;
-                plaintext.decoded()
+                Ok(self.ct.c2 - dec_factor)
             } else {
                 Err(CryptoError::ShareRejected)
             }
@@ -515,7 +514,7 @@ mod test {
                 decrypted.add_share(party.index, &party.pubkey_share, &share);
             });
 
-        assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
     #[test]
@@ -540,7 +539,7 @@ mod test {
             });
 
         assert!(decrypted.verify());
-        assert_eq!(decrypted.finish().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
     }
 
     #[test]
