@@ -11,7 +11,7 @@ fn main() {
     let mut ctx = CryptoContext::new().unwrap();
     let pubkey = PublicKey::new(ctx.random_elem());
     let n = 10000;
-    let m = 5;
+    let m = 6;
 
     let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
     let cts: Vec<_> = factors.par_iter().map(|r| {
@@ -41,5 +41,4 @@ fn main() {
     assert!(proof.verify(&mut ctx, &commit_ctx, &generators, shuffle.inputs(), shuffle.outputs(), &pubkey));
     let now = Instant::now();
     println!("verified proof of shuffle for {}x{} in {}ms", n, m, (now - then).as_millis());
-
 }

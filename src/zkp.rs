@@ -12,12 +12,15 @@ pub struct PrfKnowDlog {
     r: Scalar,
 }
 
+const KNOW_DLOG_TAG: &'static str = "KNOW_DLOG";
+
 impl PrfKnowDlog {
     fn challenge(base: &CurveElem, result: &CurveElem, blinded_base: &CurveElem) -> Scalar {
         Hasher::sha_256()
             .and_update(&base.as_bytes())
             .and_update(&result.as_bytes())
             .and_update(&blinded_base.as_bytes())
+            .and_update(KNOW_DLOG_TAG.as_bytes())
             .finish_scalar()
     }
 
@@ -55,6 +58,8 @@ pub struct PrfEqDlogs {
     r: Scalar,
 }
 
+const EQ_DLOGS_TAG: &'static str = "EQ_DLOGS";
+
 impl PrfEqDlogs {
     fn challenge(f: &CurveElem,
                  h: &CurveElem,
@@ -69,6 +74,7 @@ impl PrfEqDlogs {
             .and_update(&w.as_bytes())
             .and_update(&a.as_bytes())
             .and_update(&b.as_bytes())
+            .and_update(EQ_DLOGS_TAG.as_bytes())
             .finish_scalar()
     }
 

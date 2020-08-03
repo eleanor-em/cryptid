@@ -64,6 +64,8 @@ pub struct Shuffle {
     perm: Permutation,
 }
 
+const SHUFFLE_TAG: &'static str = "SHUFFLE_PROOF";
+
 impl Shuffle {
     pub fn new(
         mut ctx: CryptoContext,
@@ -142,7 +144,9 @@ impl Shuffle {
             .and_update(&initial_bytes)
             .and_update(&pubkey.y.as_bytes())
             .and_update(&commit_ctx.g.as_bytes())
-            .and_update(&commit_ctx.h.as_bytes());
+            .and_update(&commit_ctx.h.as_bytes())
+            .and_update(&ctx.generator().as_bytes())
+            .and_update(SHUFFLE_TAG.as_bytes());
 
         let challenges: Vec<_> = (0..n).into_par_iter().map(|i| {
             base_hasher.clone()
@@ -229,7 +233,7 @@ impl Shuffle {
         }
         let c = hash.finish_scalar();
 
-        // Complete commitments
+        // Compute responses
         let s_1 = omegas[0] + c * r_bar;
         let s_2 = omegas[1] + c * r_hat;
         let s_3 = omegas[2] + c * r_tilde;
@@ -323,7 +327,9 @@ impl ShuffleProof {
             .and_update(&initial_bytes)
             .and_update(&pubkey.y.as_bytes())
             .and_update(&commit_ctx.g.as_bytes())
-            .and_update(&commit_ctx.h.as_bytes());
+            .and_update(&commit_ctx.h.as_bytes())
+            .and_update(&ctx.generator().as_bytes())
+            .and_update(SHUFFLE_TAG.as_bytes());
 
         let challenges: Vec<_> = (0..n).into_par_iter().map(|i| {
             base_hasher.clone()

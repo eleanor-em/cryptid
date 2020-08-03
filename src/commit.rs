@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
 
-use serde::{Serialize, Deserialize};
 use serde::export::Formatter;
 
 use crate::elgamal::CurveElem;
@@ -11,6 +10,8 @@ use crate::threshold::EncodingError;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use std::convert::TryFrom;
 
+/// A Pedersen commitment context, composed of a pair of independent, verifiably-chosen
+/// group generators.
 #[derive(Clone)]
 pub struct PedersenCtx {
     pub(crate) g: CurveElem,
@@ -18,6 +19,10 @@ pub struct PedersenCtx {
 }
 
 impl PedersenCtx {
+    /// Creates a Pedersen commitment context, with a number of additional generators for extended
+    /// commitments. Returns a pair containing the context and a vector of extra generators.
+    ///
+    /// Generators are chosen verifiably by hashing the seed.
     pub fn with_generators(seed: &[u8], num_generators: usize) -> (PedersenCtx, Vec<CurveElem>) {
         let mut counter: usize = 0;
 
@@ -26,6 +31,7 @@ impl PedersenCtx {
             .and_update(&counter.to_be_bytes())
             .finish_64_bytes().unwrap())
             .into();
+
         counter += 1;
 
         let h = RistrettoPoint::from_uniform_bytes(&Hasher::sha_512()
@@ -34,8 +40,6 @@ impl PedersenCtx {
             .finish_64_bytes().unwrap())
             .into();
         counter += 1;
-
-        let ctx = Self { g, h };
 
         let generators = (0..num_generators).map(|_| {
             let bytes = Hasher::sha_512()
@@ -47,13 +51,16 @@ impl PedersenCtx {
             RistrettoPoint::from_uniform_bytes(&bytes).into()
         }).collect();
 
+        let ctx = Self { g, h };
         (ctx, generators)
     }
 
+    /// Create a new Pedersen commitment context without any extra generators.
     pub fn new(seed: &[u8]) -> Self {
         Self::with_generators(seed, 0).0
     }
 
+    /// Commit to the chosen pair of values.
     pub fn commit(&self, x: &Scalar, r: &Scalar) -> Commitment {
         Commitment {
             g: self.g.clone(),
@@ -63,7 +70,8 @@ impl PedersenCtx {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
+/// A commitment to a pair of values, given a pair of generators chosen by a `PedersenCtx`.
+#[derive(PartialEq, Eq, Clone)]
 pub struct Commitment {
     g: CurveElem,
     h: CurveElem,
@@ -91,11 +99,12 @@ impl TryFrom<String> for Commitment {
             return Err(EncodingError::Length);
         }
 
-        let mut elems = elems.into_iter()
+        let mut elems: Vec<_> = elems.into_iter()
             .map(|s| CurveElem::try_from_base64(s))
-            .collect::<Result<Vec<_>, _>>()
+            .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Base64)?;
 
+        // Remove in reverse order to avoid pointless clones
         let value = elems.remove(2);
         let h = elems.remove(1);
         let g = elems.remove(0);
