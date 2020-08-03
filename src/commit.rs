@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
+use serde::{Serialize, Deserialize};
 
 use serde::export::Formatter;
 
@@ -71,7 +72,7 @@ impl PedersenCtx {
 }
 
 /// A commitment to a pair of values, given a pair of generators chosen by a `PedersenCtx`.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Commitment {
     g: CurveElem,
     h: CurveElem,
