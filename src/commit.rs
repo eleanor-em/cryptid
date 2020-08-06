@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 
 use serde::export::Formatter;
 
-use crate::elgamal::CurveElem;
+use crate::elgamal::{CurveElem, Ciphertext};
 use crate::{Hasher, AsBase64};
 use crate::Scalar;
 use crate::threshold::EncodingError;
@@ -69,6 +69,13 @@ impl PedersenCtx {
             value: self.g.scaled(&x) + self.h.scaled(&r)
         }
     }
+
+    pub fn commit_ct(&self, ct: &Ciphertext, rs: (&Scalar, &Scalar)) -> CtCommitment {
+        CtCommitment {
+            a: self.commit(&ct.c1.into(), &rs.0),
+            b: self.commit(&ct.c2.into(), &rs.1),
+        }
+    }
 }
 
 /// A commitment to a pair of values, given a pair of generators chosen by a `PedersenCtx`.
@@ -115,21 +122,63 @@ impl TryFrom<String> for Commitment {
 }
 
 impl Commitment {
-    // Returns whether this commitment's parameters match the given commitment context's parameters
-    pub fn matches(&self, ctx: &PedersenCtx) -> bool {
-        self.g == ctx.g && self.h == ctx.h
-    }
-
-    pub fn validate(&self, x: &Scalar, r: &Scalar) -> bool {
-        self.value == self.g.scaled(&x) + self.h.scaled(&r)
+    pub fn validate(&self, commit_ctx: &PedersenCtx, x: &Scalar, r: &Scalar) -> bool {
+        self.g == commit_ctx.g && self.h == commit_ctx.h &&
+            self.value == self.g.scaled(&x) + self.h.scaled(&r)
     }
 }
 
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CtCommitment {
+    a: Commitment,
+    b: Commitment,
+}
+
+impl Display for CtCommitment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}-{}", self.a.to_string(), self.b.to_string())
+    }
+}
+
+impl Debug for CtCommitment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl TryFrom<String> for CtCommitment {
+    type Error = EncodingError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let elems: Vec<_> = value.split("-").collect();
+        if elems.len() != 2 {
+            return Err(EncodingError::Length);
+        }
+
+        let mut elems: Vec<_> = elems.into_iter()
+            .map(|s| Commitment::try_from(s.to_string()))
+            .collect::<Result<_, _>>()
+            .map_err(|_| EncodingError::Commitment)?;
+
+        // Remove in reverse order to avoid pointless clones
+        let b = elems.remove(1);
+        let a = elems.remove(0);
+
+        Ok(Self { a, b })
+    }
+}
+
+impl CtCommitment {
+    pub fn validate(&self, commit_ctx: &PedersenCtx, ct: &Ciphertext, rs: (&Scalar, &Scalar)) -> bool {
+        self.a.validate(commit_ctx, &ct.c1.into(), rs.0)
+            && self.b.validate(commit_ctx, &ct.c2.into(), rs.1)
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::elgamal::CryptoContext;
-    use crate::commit::{PedersenCtx, Commitment};
+    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::commit::{PedersenCtx, Commitment, CtCommitment};
     use rand::RngCore;
     use std::convert::TryFrom;
 
@@ -150,8 +199,8 @@ mod tests {
         let r_prime = ctx.random_scalar();
         let commitment = commit_ctx.commit(&x, &r);
 
-        assert!(commitment.validate(&x, &r));
-        assert_eq!(commitment.validate(&x_prime, &r_prime), false);
+        assert!(commitment.validate(&commit_ctx, &x, &r));
+        assert_eq!(commitment.validate(&commit_ctx, &x_prime, &r_prime), false);
     }
 
     #[test]
@@ -173,6 +222,66 @@ mod tests {
         let de: Commitment = Commitment::try_from(ser).unwrap();
 
         assert_eq!(commitment, de);
-        assert!(de.validate(&x, &r));
+        assert!(de.validate(&commit_ctx, &x, &r));
+    }
+
+    #[test]
+    fn test_ct_commit() {
+        let ctx = CryptoContext::new().unwrap();
+        let pk = PublicKey::new(ctx.random_elem());
+
+        let mut seed = [0; 64];
+        let rng = ctx.rng();
+        {
+            let mut rng = rng.lock().unwrap();
+            rng.fill_bytes(&mut seed);
+        }
+        let commit_ctx = PedersenCtx::new(&seed);
+
+        let x = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let ct = pk.encrypt(&ctx, &x, &r);
+
+        let x_prime = ctx.random_elem();
+        let r_prime = ctx.random_scalar();
+        let ct_prime = pk.encrypt(&ctx, &x_prime, &r_prime);
+
+        let r1 = ctx.random_scalar();
+        let r2 = ctx.random_scalar();
+        let r1_prime = ctx.random_scalar();
+        let r2_prime = ctx.random_scalar();
+
+        let commitment = commit_ctx.commit_ct(&ct, (&r1, &r2));
+
+        assert!(commitment.validate(&commit_ctx, &ct, (&r1, &r2)));
+        assert_eq!(commitment.validate(&commit_ctx, &ct_prime, (&r1_prime, &r2_prime)), false);
+    }
+
+    #[test]
+    fn test_ct_commit_serde() {
+        let ctx = CryptoContext::new().unwrap();
+        let pk = PublicKey::new(ctx.random_elem());
+
+        let mut seed = [0; 64];
+        let rng = ctx.rng();
+        {
+            let mut rng = rng.lock().unwrap();
+            rng.fill_bytes(&mut seed);
+        }
+        let commit_ctx = PedersenCtx::new(&seed);
+
+        let x = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let ct = pk.encrypt(&ctx, &x, &r);
+
+        let r1 = ctx.random_scalar();
+        let r2 = ctx.random_scalar();
+        let commitment = commit_ctx.commit_ct(&ct, (&r1, &r2));
+
+        let ser = commitment.to_string();
+        let de = CtCommitment::try_from(ser).unwrap();
+
+        assert_eq!(commitment, de);
+        assert!(de.validate(&commit_ctx, &ct, (&r1, &r2)));
     }
 }

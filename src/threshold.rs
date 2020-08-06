@@ -17,6 +17,7 @@ use crate::scalar::DalekScalar;
 pub enum EncodingError {
     Base64,
     CurveElem,
+    Commitment,
     Length,
     Num,
     Verify,
