@@ -70,7 +70,7 @@ impl PedersenCtx {
         }
     }
 
-    pub fn commit_ct(&self, ct: &Ciphertext, rs: (&Scalar, &Scalar)) -> CtCommitment {
+    pub fn commit_ct(&self, ct: &Ciphertext, rs: &(Scalar, Scalar)) -> CtCommitment {
         CtCommitment {
             a: self.commit(&ct.c1.into(), &rs.0),
             b: self.commit(&ct.c2.into(), &rs.1),
@@ -251,7 +251,7 @@ mod tests {
         let r1_prime = ctx.random_scalar();
         let r2_prime = ctx.random_scalar();
 
-        let commitment = commit_ctx.commit_ct(&ct, (&r1, &r2));
+        let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
         assert!(commitment.validate(&commit_ctx, &ct, (&r1, &r2)));
         assert_eq!(commitment.validate(&commit_ctx, &ct_prime, (&r1_prime, &r2_prime)), false);
@@ -276,7 +276,7 @@ mod tests {
 
         let r1 = ctx.random_scalar();
         let r2 = ctx.random_scalar();
-        let commitment = commit_ctx.commit_ct(&ct, (&r1, &r2));
+        let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
         let ser = commitment.to_string();
         let de = CtCommitment::try_from(ser).unwrap();
