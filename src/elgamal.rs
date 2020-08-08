@@ -94,6 +94,13 @@ impl Ciphertext {
         }
     }
 
+    pub fn scaled(&self, scalar: &Scalar) -> Self {
+        Ciphertext {
+            c1: self.c1.scaled(scalar),
+            c2: self.c2.scaled(scalar)
+        }
+    }
+
     pub fn decrypt(&self, secret_key: &Scalar) -> CurveElem {
         &self.c2 - &(self.c1.scaled(secret_key))
     }
