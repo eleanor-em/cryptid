@@ -87,15 +87,22 @@ pub struct Ciphertext {
 }
 
 impl Ciphertext {
+    pub fn identity() -> Self {
+        Self {
+            c1: CurveElem::identity(),
+            c2: CurveElem::identity(),
+        }
+    }
+
     pub fn add(&self, rhs: &Self) -> Self {
-        Ciphertext {
+        Self {
             c1: &self.c1 + &rhs.c1,
             c2: &self.c2 + &rhs.c2,
         }
     }
 
     pub fn scaled(&self, scalar: &Scalar) -> Self {
-        Ciphertext {
+        Self {
             c1: self.c1.scaled(scalar),
             c2: self.c2.scaled(scalar)
         }
