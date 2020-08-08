@@ -14,7 +14,7 @@ macro_rules! base64_serde {
         mod base64_serde_inner {
             use serde::de;
             use serde::export::fmt;
-            use crate::util::AsBase64;
+            use super::AsBase64;
 
             pub struct Base64Visitor;
 
