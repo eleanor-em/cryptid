@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{Hasher, Scalar};
+use crate::{Hasher, Scalar, AsBase64};
 use crate::curve::CurveElem;
 use crate::elgamal::CryptoContext;
 use std::fmt::Display;
@@ -16,7 +16,8 @@ pub struct PrfKnowDlog {
 
 impl Display for PrfKnowDlog {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).unwrap())
+        write!(f, "{}:{}:{}:{}", self.base.as_base64(), self.result.as_base64(),
+               self.blinded_base.as_base64(), self.r.as_base64())
     }
 }
 
@@ -57,10 +58,10 @@ impl PrfKnowDlog {
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfEqDlogs {
-    pub result1: CurveElem,
-    pub base1: CurveElem,
-    pub result2: CurveElem,
-    pub base2: CurveElem,
+    pub(crate) result1: CurveElem,
+    pub(crate) base1: CurveElem,
+    pub(crate) result2: CurveElem,
+    pub(crate) base2: CurveElem,
     blinded_base1: CurveElem,
     blinded_base2: CurveElem,
     r: Scalar,
@@ -68,7 +69,9 @@ pub struct PrfEqDlogs {
 
 impl Display for PrfEqDlogs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).unwrap())
+        write!(f, "{}:{}:{}:{}:{}:{}:{}", self.result1.as_base64(), self.base1.as_base64(),
+               self.result2.as_base64(), self.base2.as_base64(), self.blinded_base1.as_base64(),
+               self.blinded_base2.as_base64(), self.r.as_base64())
     }
 }
 
