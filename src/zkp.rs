@@ -3,6 +3,8 @@ use serde::{Serialize, Deserialize};
 use crate::{Hasher, Scalar};
 use crate::curve::CurveElem;
 use crate::elgamal::CryptoContext;
+use std::fmt::Display;
+use serde::export::Formatter;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowDlog {
@@ -10,6 +12,12 @@ pub struct PrfKnowDlog {
     result: CurveElem,
     blinded_base: CurveElem,
     r: Scalar,
+}
+
+impl Display for PrfKnowDlog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(&self).unwrap())
+    }
 }
 
 const KNOW_DLOG_TAG: &'static str = "KNOW_DLOG";
@@ -56,6 +64,12 @@ pub struct PrfEqDlogs {
     blinded_base1: CurveElem,
     blinded_base2: CurveElem,
     r: Scalar,
+}
+
+impl Display for PrfEqDlogs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(&self).unwrap())
+    }
 }
 
 const EQ_DLOGS_TAG: &'static str = "EQ_DLOGS";
