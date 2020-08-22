@@ -58,10 +58,10 @@ impl PrfKnowDlog {
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfEqDlogs {
-    pub(crate) result1: CurveElem,
-    pub(crate) base1: CurveElem,
-    pub(crate) result2: CurveElem,
-    pub(crate) base2: CurveElem,
+    pub result1: CurveElem,
+    pub base1: CurveElem,
+    pub result2: CurveElem,
+    pub base2: CurveElem,
     blinded_base1: CurveElem,
     blinded_base2: CurveElem,
     r: Scalar,
