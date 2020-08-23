@@ -278,6 +278,8 @@ impl ThresholdParty {
         PubkeyProof(self.pubkey_share)
     }
 
+    pub fn private_share(&self) -> Scalar { self.secret_share.clone() }
+
     // Returns this party's share of a decryption.
     pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
         let dec_share = ct.c1.scaled(&self.secret_share);
