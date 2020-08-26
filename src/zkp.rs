@@ -7,6 +7,8 @@ use std::fmt::Display;
 use serde::export::Formatter;
 
 const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowPlaintext {
     pub g: CurveElem,
     pub ct: Ciphertext,
