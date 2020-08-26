@@ -10,7 +10,7 @@ fn main() {
     let then = Instant::now();
     let ctx = CryptoContext::new().unwrap();
     let pubkey = PublicKey::new(ctx.random_elem());
-    let n = 10000;
+    let n = 100000;
     let m = 6;
 
     let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();

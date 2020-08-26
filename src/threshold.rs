@@ -283,15 +283,13 @@ impl ThresholdParty {
     // Returns this party's share of a decryption.
     pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
         let dec_share = ct.c1.scaled(&self.secret_share);
-        let g = self.ctx.generator();
 
-        let proof = zkp::PrfEqDlogs::new(
+        let proof = zkp::PrfDecryption::new(
             &self.ctx,
-            &g,
-            &ct.c1,
-            &self.pubkey_share,
-            &dec_share,
-            &self.secret_share);
+            ct.clone(),
+            dec_share.clone(),
+            self.secret_share.clone(),
+            self.pubkey_share.clone());
 
         DecryptShare { share: dec_share, proof }
     }
@@ -335,7 +333,7 @@ fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct DecryptShare {
     share: CurveElem,
-    proof: zkp::PrfEqDlogs,
+    proof: zkp::PrfDecryption,
 }
 
 #[derive(Debug)]
@@ -371,10 +369,10 @@ impl Decryption {
 
                 // Verify the proof, and that the parameters are what they're supposed to be
                 proof.verify()
-                    && proof.base1 == self.ctx.generator()
-                    && proof.base2 == self.ct.c1
-                    && proof.result1 == pubkey_proof.0
-                    && proof.result2 == share.share
+                    && proof.public_key == pubkey_proof.0
+                    && proof.ct == self.ct
+                    && proof.dec_factor == share.share
+                    && proof.g == self.ctx.generator()
             });
 
         self.is_complete() && results.all(identity)

@@ -2,57 +2,51 @@ use serde::{Serialize, Deserialize};
 
 use crate::{Hasher, Scalar, AsBase64};
 use crate::curve::CurveElem;
-use crate::elgamal::CryptoContext;
+use crate::elgamal::{CryptoContext, Ciphertext};
 use std::fmt::Display;
 use serde::export::Formatter;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct PrfKnowDlog {
-    pub(crate) base: CurveElem,
-    result: CurveElem,
-    blinded_base: CurveElem,
+const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";
+pub struct PrfKnowPlaintext {
+    pub g: CurveElem,
+    pub ct: Ciphertext,
+    blinded_g: CurveElem,
     r: Scalar,
 }
 
-impl Display for PrfKnowDlog {
+impl Display for PrfKnowPlaintext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}:{}", self.base.as_base64(), self.result.as_base64(),
-               self.blinded_base.as_base64(), self.r.as_base64())
+        write!(f, "{}:{}:{}:{}", self.g.as_base64(), self.ct.to_string(),
+               self.blinded_g.as_base64(), self.r.as_base64())
     }
 }
 
-const KNOW_DLOG_TAG: &'static str = "KNOW_DLOG";
-
-impl PrfKnowDlog {
-    fn challenge(base: &CurveElem, result: &CurveElem, blinded_base: &CurveElem) -> Scalar {
+impl PrfKnowPlaintext {
+    fn challenge(g: &CurveElem, ct: &Ciphertext, blinded_g: &CurveElem) -> Scalar {
         Hasher::sha_256()
-            .and_update(&base.as_bytes())
-            .and_update(&result.as_bytes())
-            .and_update(&blinded_base.as_bytes())
-            .and_update(KNOW_DLOG_TAG.as_bytes())
+            .and_update(&g.as_bytes())
+            .and_update(&ct.c1.as_bytes())
+            .and_update(&ct.c2.as_bytes())
+            .and_update(&blinded_g.as_bytes())
+            .and_update(KNOW_PLAINTEXT_TAG.as_bytes())
             .finish_scalar()
     }
 
-    /// Proves that we know x such that y = g^x
-    pub fn new(ctx: &CryptoContext, base: &CurveElem, power: &Scalar, result: &CurveElem) -> Self {
+    pub fn new(ctx: &CryptoContext, ct: Ciphertext, r: Scalar) -> Self {
         // Choose random commitment
+        let g = ctx.generator();
         let z = ctx.random_scalar();
-        let blinded = base.scaled(&z);
+        let blinded_g = g.scaled(&z);
         // Calculate the challenge
-        let c = Self::challenge(base, result, &blinded);
-        let r = Scalar(z.0 + c.0 * power.0);
+        let c = Self::challenge(&g, &ct, &blinded_g);
+        let r = Scalar(z.0 + c.0 * r.0);
 
-        Self {
-            base: base.clone(),
-            result: result.clone(),
-            blinded_base: blinded,
-            r,
-        }
+        Self { g, ct, blinded_g, r }
     }
 
     pub fn verify(&self) -> bool {
-        let c = Self::challenge(&self.base, &self.result, &self.blinded_base);
-        self.base.scaled(&self.r) == &self.blinded_base + &self.result.scaled(&c)
+        let c = Self::challenge(&self.g, &self.ct, &self.blinded_g);
+        self.g.scaled(&self.r) == &self.blinded_g + &self.ct.c1.scaled(&c)
     }
 }
 
@@ -125,10 +119,56 @@ impl PrfEqDlogs {
     }
 }
 
+const DECRYPTION_TAG: &'static str = "DECRYPTION";
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct PrfDecryption {
+    pub g: CurveElem,
+    pub ct: Ciphertext,
+    pub public_key: CurveElem,
+    pub dec_factor: CurveElem,
+    blinded_g: CurveElem,
+    blinded_c1: CurveElem,
+    r: Scalar,
+}
+
+impl PrfDecryption {
+    fn challenge(g: &CurveElem, ct: &Ciphertext, dec_factor: &CurveElem, public_key: &CurveElem) -> Scalar {
+        Hasher::sha_256()
+            .and_update(&g.as_bytes())
+            .and_update(&ct.c1.as_bytes())
+            .and_update(&ct.c2.as_bytes())
+            .and_update(&dec_factor.as_bytes())
+            .and_update(&public_key.as_bytes())
+            .and_update(DECRYPTION_TAG.as_bytes())
+            .finish_scalar()
+    }
+
+    pub fn new(ctx: &CryptoContext, ct: Ciphertext, dec_factor: CurveElem, secret: Scalar, public_key: CurveElem) -> Self {
+        let g = ctx.generator();
+
+        let z = ctx.random_scalar();
+        let blinded_g = g.scaled(&z);
+        let blinded_c1 = ct.c1.scaled(&z);
+
+        let c = Self::challenge(&g, &ct, &dec_factor, &public_key);
+
+        let r = Scalar(z.0 + c.0 * secret.0);
+
+        Self { g, ct, public_key, dec_factor, blinded_g, blinded_c1, r }
+    }
+
+    pub fn verify(&self) -> bool {
+        let c = Self::challenge(&self.g, &self.ct, &self.dec_factor, &self.public_key);
+        self.g.scaled(&self.r) == &self.blinded_g + &self.public_key.scaled(&c)
+            && self.ct.c1.scaled(&self.r) == &self.blinded_c1 + &self.dec_factor.scaled(&c)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::elgamal::CryptoContext;
-    use crate::zkp::{PrfKnowDlog, PrfEqDlogs};
+    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::zkp::{PrfEqDlogs, PrfDecryption, PrfKnowPlaintext};
     use crate::Scalar;
     use crate::scalar::DalekScalar;
 
@@ -145,25 +185,31 @@ mod tests {
     }
 
     #[test]
-    fn test_prf_know_dlog_complete() {
+    fn test_prf_know_plaintext_complete() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let y = ctx.g_to(&x);
-        let g = ctx.generator();
-        let proof = PrfKnowDlog::new(&ctx, &g, &x, &y);
+        let pk = PublicKey::new(ctx.g_to(&x));
 
+        let m = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let enc = pk.encrypt(&ctx, &m, &r);
+
+        let proof = PrfKnowPlaintext::new(&ctx, enc, r);
         assert!(proof.verify());
     }
 
     #[test]
-    fn test_prof_know_dlog_sound() {
+    fn test_prf_know_plaintext_sound() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let y = ctx.g_to(&x);
-        let g = ctx.generator();
-        let mut proof = PrfKnowDlog::new(&ctx, &g, &x, &y);
-        proof.r.0 += &DalekScalar::one();
+        let pk = PublicKey::new(ctx.g_to(&x));
 
+        let m = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let enc = pk.encrypt(&ctx, &m, &r);
+
+        let mut proof = PrfKnowPlaintext::new(&ctx, enc, r);
+        proof.r.0 += &DalekScalar::one();
         assert!(!proof.verify());
     }
 
@@ -196,6 +242,38 @@ mod tests {
         let w = h.scaled(&x);
 
         let mut proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x);
+        proof.r.0 += &DalekScalar::one();
+
+        assert!(!proof.verify());
+    }
+
+    #[test]
+    fn test_prf_dec_complete() {
+        let ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_scalar();
+        let pk = PublicKey::new(ctx.g_to(&x));
+
+        let m = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let enc = pk.encrypt(&ctx, &m, &r);
+        let dec = enc.c1.scaled(&x);
+
+        let proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);
+        assert!(proof.verify());
+    }
+
+    #[test]
+    fn test_prf_dec_sound() {
+        let ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_scalar();
+        let pk = PublicKey::new(ctx.g_to(&x));
+
+        let m = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let enc = pk.encrypt(&ctx, &m, &r);
+        let dec = enc.c1.scaled(&x);
+
+        let mut proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);
         proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify());
