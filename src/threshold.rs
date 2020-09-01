@@ -275,7 +275,7 @@ impl ThresholdParty {
         min_trustees: usize,
         trustee_count: usize,
         secret_share: Scalar,
-        pubkey_share: CurveElem,
+        pubkey_proof: PubkeyProof,
         pubkey: PublicKey
     ) -> Self {
         Self {
@@ -284,7 +284,7 @@ impl ThresholdParty {
             min_trustees,
             trustee_count,
             secret_share,
-            pubkey_share,
+            pubkey_share: pubkey_proof.0,
             pubkey
         }
     }
