@@ -269,6 +269,26 @@ impl Clone for ThresholdParty {
 }
 
 impl ThresholdParty {
+    pub fn from_existing(
+        ctx: &CryptoContext,
+        index: usize,
+        min_trustees: usize,
+        trustee_count: usize,
+        secret_share: Scalar,
+        pubkey_share: CurveElem,
+        pubkey: PublicKey
+    ) -> Self {
+        Self {
+            ctx: ctx.clone(),
+            index,
+            min_trustees,
+            trustee_count,
+            secret_share,
+            pubkey_share,
+            pubkey
+        }
+    }
+    
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
     }
