@@ -119,10 +119,10 @@ impl ToString for Ciphertext {
     }
 }
 
-impl TryFrom<String> for Ciphertext {
+impl TryFrom<&str> for Ciphertext {
     type Error = EncodingError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut elems = Vec::new();
         for encoded in value.split(":") {
             let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
@@ -238,7 +238,9 @@ mod test {
 
         let ct = y.encrypt(&ctx, &m.into(), &r);
 
-        assert_eq!(ct, Ciphertext::try_from(ct.to_string()).unwrap());
+        let ct_str = ct.to_string();
+
+        assert_eq!(ct, Ciphertext::try_from(ct_str.as_str()).unwrap());
     }
 
     #[test]

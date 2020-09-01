@@ -1,10 +1,11 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{Hasher, Scalar, AsBase64};
+use crate::{Hasher, Scalar, AsBase64, CryptoError};
 use crate::curve::CurveElem;
 use crate::elgamal::{CryptoContext, Ciphertext};
 use std::fmt::Display;
 use serde::export::Formatter;
+use std::convert::TryFrom;
 
 const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";
 
@@ -18,8 +19,29 @@ pub struct PrfKnowPlaintext {
 
 impl Display for PrfKnowPlaintext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}:{}", self.g.as_base64(), self.ct.to_string(),
+        write!(f, "{}-{}-{}-{}", self.g.as_base64(), self.ct.to_string(),
                self.blinded_g.as_base64(), self.r.as_base64())
+    }
+}
+
+impl TryFrom<&str> for PrfKnowPlaintext {
+    type Error = CryptoError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut parts = value.split('-');
+
+        let g = parts.next().ok_or(CryptoError::Decoding)?;
+        let ct = parts.next().ok_or(CryptoError::Decoding)?;
+        let blinded_g = parts.next().ok_or(CryptoError::Decoding)?;
+        let r = parts.next().ok_or(CryptoError::Decoding)?;
+
+        let g = CurveElem::try_from_base64(g)?;
+        let ct = Ciphertext::try_from(ct)
+            .map_err(|_| CryptoError::Decoding)?;
+        let blinded_g = CurveElem::try_from_base64(blinded_g)?;
+        let r = Scalar::try_from_base64(r)?;
+
+        Ok(Self { g, ct, blinded_g, r })
     }
 }
 
@@ -173,6 +195,7 @@ mod tests {
     use crate::zkp::{PrfEqDlogs, PrfDecryption, PrfKnowPlaintext};
     use crate::Scalar;
     use crate::scalar::DalekScalar;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_exp_sum() {
@@ -184,6 +207,22 @@ mod tests {
         let x = ctx.g_to(&r);
         let y = ctx.g_to(&a) + ctx.g_to(&b);
         assert_eq!(x, y);
+    }
+
+    #[test]
+    fn test_prf_know_plaintext_serde() {
+        let ctx = CryptoContext::new().unwrap();
+        let x = ctx.random_scalar();
+        let pk = PublicKey::new(ctx.g_to(&x));
+
+        let m = ctx.random_elem();
+        let r = ctx.random_scalar();
+        let enc = pk.encrypt(&ctx, &m, &r);
+
+        let proof = PrfKnowPlaintext::new(&ctx, enc, r);
+        let ser = proof.to_string();
+        let de = PrfKnowPlaintext::try_from(ser.as_str()).unwrap();
+        assert_eq!(proof, de);
     }
 
     #[test]

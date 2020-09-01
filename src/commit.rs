@@ -98,10 +98,10 @@ impl Debug for Commitment {
     }
 }
 
-impl TryFrom<String> for Commitment {
+impl TryFrom<&str> for Commitment {
     type Error = EncodingError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let elems: Vec<_> = value.split(":").collect();
         if elems.len() != 3 {
             return Err(EncodingError::Length);
@@ -146,17 +146,17 @@ impl Debug for CtCommitment {
     }
 }
 
-impl TryFrom<String> for CtCommitment {
+impl TryFrom<&str> for CtCommitment {
     type Error = EncodingError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let elems: Vec<_> = value.split("-").collect();
         if elems.len() != 2 {
             return Err(EncodingError::Length);
         }
 
         let mut elems: Vec<_> = elems.into_iter()
-            .map(|s| Commitment::try_from(s.to_string()))
+            .map(|s| Commitment::try_from(s))
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Commitment)?;
 
@@ -219,7 +219,7 @@ mod tests {
         let commitment = commit_ctx.commit(&x, &r);
 
         let ser = commitment.to_string();
-        let de: Commitment = Commitment::try_from(ser).unwrap();
+        let de = Commitment::try_from(ser.as_str()).unwrap();
 
         assert_eq!(commitment, de);
         assert!(de.validate(&commit_ctx, &x, &r));
@@ -279,7 +279,7 @@ mod tests {
         let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
         let ser = commitment.to_string();
-        let de = CtCommitment::try_from(ser).unwrap();
+        let de = CtCommitment::try_from(ser.as_str()).unwrap();
 
         assert_eq!(commitment, de);
         assert!(de.validate(&commit_ctx, &ct, (&r1, &r2)));

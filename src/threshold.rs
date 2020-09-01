@@ -63,10 +63,10 @@ impl Display for KeygenCommitment {
     }
 }
 
-impl TryFrom<String> for KeygenCommitment {
+impl TryFrom<&str> for KeygenCommitment {
     type Error = EncodingError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut elems = Vec::new();
         for encoded in value.split(":") {
             let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
@@ -479,7 +479,7 @@ mod test {
         let ctx = CryptoContext::new().unwrap();
         let generator = ThresholdGenerator::new(&ctx, 1, K, N);
         let commit = generator.get_commitment();
-        let commit_decoded = commit.to_string().try_into().unwrap();
+        let commit_decoded = commit.to_string().as_str().try_into().unwrap();
 
         assert_eq!(commit, commit_decoded)
     }
