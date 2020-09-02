@@ -73,6 +73,9 @@ impl Shuffle {
         pubkey: &PublicKey
     ) -> Result<Self, CryptoError> {
         let n = inputs.len();
+        if n == 0 {
+            return Err(CryptoError::EmptyShuffle);
+        }
         let m = inputs[0].len();
 
         let perm = {
@@ -109,6 +112,9 @@ impl Shuffle {
     ) -> Result<ShuffleProof, CryptoError> {
         // Convenience shortcuts for parameters
         let n = self.perm.map.len();
+        if n == 0 {
+            return Err(CryptoError::EmptyShuffle);
+        }
         let m = self.inputs[0].len();
         let h = &commit_ctx.h;
         if generators.len() < n {
@@ -300,6 +306,11 @@ impl ShuffleProof {
 
         // Convenience shortcuts for parameters
         let n = inputs.len();
+        // Empty shuffle is trivially correct
+        if n == 0 {
+            return true;
+        }
+
         let m = inputs[0].len();
         let h = &commit_ctx.h;
 

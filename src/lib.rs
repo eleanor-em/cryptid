@@ -88,6 +88,7 @@ pub enum CryptoError {
     ShareRejected,
     KeygenMissing,
     InvalidGenCount,
+    EmptyShuffle,
 }
 
 impl Display for CryptoError {
