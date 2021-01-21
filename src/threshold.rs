@@ -1,598 +1,157 @@
-use std::collections::HashMap;
-use std::convert::{identity, TryFrom};
-use std::error::Error;
-use std::fmt;
-use std::fmt::Display;
+#![allow(non_snake_case)]
 
-use serde::{Serialize, Deserialize};
-use serde::export::Formatter;
+use curve25519_dalek::constants as dalek_constants;
+use curve25519_dalek::scalar::Scalar as NgScalar;
+use curve25519_dalek::ristretto::CompressedRistretto as NgCompressedRistretto;
+use curve25519_dalek::ristretto::RistrettoPoint as NgRistrettoPoint;
+use rand_core::{RngCore, CryptoRng};
+use rust_elgamal::{DecryptionKey, Scalar};
+use rust_elgamal::util::random_scalar;
+use serde::{Deserialize, Serialize};
+use sha2::Sha512;
+use zkp::Transcript;
 
-use crate::curve::{ CurveElem, Polynomial };
-use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
-use crate::{zkp, CryptoError, Scalar};
-use crate::util::AsBase64;
-use crate::scalar::DalekScalar;
-
-#[derive(Clone, Copy, Debug)]
-pub enum EncodingError {
-    Base64,
-    CurveElem,
-    Commitment,
-    Length,
-    Num,
-    Verify,
+define_proof! {
+    coeff_knowledge,
+    "Proof of Knowledge of Coefficients",
+    (a),            // coefficient
+    (K, Q),         // commitment and base hash respectively
+    (G) :           // group generator
+    K = (a * G)
 }
 
-impl Display for EncodingError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+#[derive(Debug, Clone, Deserialize, Serialize, Hash)]
+pub struct GuardianParams {
+    pub threshold_count: usize,
+    pub total_count: usize,
+    pub base_hash: Vec<u8>,
+}
+
+impl GuardianParams {
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut bytes = self.base_hash.clone();
+        bytes.extend_from_slice(&self.threshold_count.to_le_bytes());
+        bytes.extend_from_slice(&self.total_count.to_le_bytes());
+        bytes
     }
 }
 
-impl Error for EncodingError {}
-
-pub trait Threshold {
-    type Error;
-    type Destination;
-
-    fn is_complete(&self) -> bool;
-    fn finish(&self) -> Result<Self::Destination, Self::Error>;
+pub struct Guardian {
+    params: GuardianParams,
+    key: DecryptionKey,
+    coefficients: Vec<Scalar>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KeygenCommitment {
-    elems: Vec<CurveElem>,
-}
-
-impl Into<Vec<CurveElem>> for KeygenCommitment {
-    fn into(self) -> Vec<CurveElem> {
-        self.elems
-    }
-}
-
-impl From<Vec<CurveElem>> for KeygenCommitment {
-    fn from(elems: Vec<CurveElem>) -> Self {
-        Self { elems }
-    }
-}
-
-impl Display for KeygenCommitment {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let encoded_elems: Vec<_> = self.elems.iter().map(|elem| elem.as_base64()).collect();
-        write!(f, "{}", encoded_elems.join(":"))
-    }
-}
-
-impl TryFrom<&str> for KeygenCommitment {
-    type Error = EncodingError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let mut elems = Vec::new();
-        for encoded in value.split(":") {
-            let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
-            elems.push(elem);
-        }
-        Ok(Self { elems })
-    }
-}
-
-// Threshold ElGamal encryption after Pedersen's protocol. This type represents one party to the
-// key generation and decryption protocol.
-//
-// See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
-pub struct ThresholdGenerator {
-    ctx: CryptoContext,
-    index: usize,
-    min_trustees: usize,
-    trustee_count: usize,
-    polynomial: Polynomial,
-    shares: HashMap<usize, DalekScalar>,
-    commitments: HashMap<usize, KeygenCommitment>,
-    pk_parts: Vec<CurveElem>,
-}
-
-impl ThresholdGenerator {
-    // Create a new party with a given ID (unique and nonzero).
-    // k = the minimum number for decryption
-    // n = the total number of parties
-    pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize) -> Self {
-        if index > 0 && index <= trustee_count {
-            let ctx = ctx.clone();
-            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count);
-            let index = index as usize;
-            let min_trustees = min_trustees as usize;
-            let trustee_count = trustee_count as usize;
-
-            let shares = HashMap::new();
-            let commitments = HashMap::new();
-            let pk_parts = Vec::new();
-
-            Self { ctx, index, polynomial: f_i, min_trustees, trustee_count, shares, commitments, pk_parts }
-        } else {
-            panic!("Index must be between 1 and trustee_count inclusive.");
-        }
-    }
-
-    // Returns the commitment vector to be shared publicly.
-    pub fn get_commitment(&self) -> KeygenCommitment {
-        self.polynomial.get_public_params().into()
-    }
-
-    // Returns the polynomial secret share for the given index -- not to be shared publicly.
-    //
-    // This should only be shared to recipients AFTER commitments are ready.
-    pub fn get_polynomial_share(&self, index: usize) -> Result<Scalar, CryptoError> {
-        if !self.received_commitments() {
-            return Err(CryptoError::CommitmentMissing);
+impl Guardian {
+    pub fn new<R: RngCore + CryptoRng>(params: GuardianParams, mut rng: R) -> Self {
+        if params.threshold_count > params.total_count {
+            panic!("Threshold count must be less than or equal to the total number of guardians.")
         }
 
-        if index > 0 && index <= self.trustee_count {
-            Ok(self.polynomial.evaluate(index as u32))
-        } else {
-            Err(CryptoError::InvalidId)
+        // Private share
+        let key = DecryptionKey::new(&mut rng);
+
+        // Polynomial coefficients
+        let mut coefficients = Vec::with_capacity(params.total_count);
+        coefficients.push(key.as_ref().clone());
+        for _ in 1..params.total_count {
+            coefficients.push(random_scalar(&mut rng));
         }
+
+        // Key for communication
+        let key = DecryptionKey::new(&mut rng);
+        Guardian { params, key,  coefficients }
     }
 
-    // Receives a commitment from a particular party.
-    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &KeygenCommitment)
-                              -> Result<(), CryptoError>{
-        if sender_id > 0 && sender_id <= self.trustee_count {
-            if self.commitments.insert(sender_id, commitment.clone()).is_none() {
-                Ok(())
-            } else {
-                Err(CryptoError::CommitmentDuplicated)
+    /// Generate commitments to the scalar polynomial coefficients, and prove knowledge of them.
+    pub fn gen_commitments(&self) -> GuardianCommit {
+        let base_hash = NgRistrettoPoint::hash_from_bytes::<Sha512>(&self.params.to_vec());
+
+        let mut proofs = Vec::with_capacity(self.coefficients.len());
+        let mut commitments = Vec::with_capacity(self.coefficients.len());
+
+        for coeff in self.coefficients.iter() {
+            // what's going on with ng???
+            let coeff = NgScalar::from_bits(coeff.to_bytes());
+            let commit = &coeff * &dalek_constants::RISTRETTO_BASEPOINT_TABLE;
+
+            let mut transcript = Transcript::new(b"KEYGEN_COMMIT");
+            let (proof, points) = coeff_knowledge::prove_batchable(
+                &mut transcript,
+                coeff_knowledge::ProveAssignments{
+                    a: &coeff,
+                    K: &commit,
+                    Q: &base_hash,
+                    G: &dalek_constants::RISTRETTO_BASEPOINT_POINT,
+                },
+            );
+            proofs.push(proof);
+            commitments.push(points.K);
+        }
+
+
+        GuardianCommit { params: self.params.clone(), proofs, commitments }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GuardianCommit {
+    params: GuardianParams,
+    commitments: Vec<NgCompressedRistretto>,
+    proofs: Vec<coeff_knowledge::BatchableProof>,
+}
+
+impl GuardianCommit {
+    pub fn len(&self) -> usize {
+        self.params.total_count
+    }
+
+    pub fn params(&self) -> GuardianParams {
+        self.params.clone()
+    }
+
+    pub fn verify(self) -> bool {
+        if self.params.total_count != self.commitments.len()
+        || self.params.total_count != self.proofs.len() {
+            return false;
+        }
+
+        // Fold threshold parameters into hash
+        let base_hash = NgRistrettoPoint::hash_from_bytes::<Sha512>(&self.params.to_vec())
+            .compress();
+        let base_hashes = vec![base_hash; self.len()];
+
+        let tx = Transcript::new(b"KEYGEN_COMMIT");
+        let mut transcripts = vec![tx; self.len()];
+
+        coeff_knowledge::batch_verify(
+            &self.proofs,
+            transcripts.iter_mut().collect(),
+            coeff_knowledge::BatchVerifyAssignments {
+                K: self.commitments,
+                Q: base_hashes,
+                G: dalek_constants::RISTRETTO_BASEPOINT_COMPRESSED,
             }
-        } else {
-            Err(CryptoError::InvalidId)
-        }
-    }
-
-    pub fn received_commitments(&self) -> bool {
-        self.commitments.len() == self.trustee_count as usize
-    }
-
-    // Receives a share from a particular party.
-    pub fn receive_share(&mut self, sender_id: usize, share: &Scalar) -> Result<(), CryptoError> {
-        if !self.received_commitments() {
-            return Err(CryptoError::CommitmentMissing);
-        }
-        if sender_id == 0 || sender_id > self.trustee_count {
-            return Err(CryptoError::InvalidId);
-        }
-
-        // Check what the commitment is meant to be
-        let lhs = self.ctx.g_to(share);
-        let commitment = self.commitments.get(&sender_id).unwrap();
-
-        // Verify the commitment
-        let rhs = (0..self.min_trustees).map(|l| {
-            let power = Scalar::from((self.index as u32).pow(l as u32));
-            let base = commitment.elems.get(l).ok_or(CryptoError::CommitmentPartMissing)?;
-            Ok(base.scaled(&power))
-        }).collect::<Result<Vec<_>, _>>()?;
-        let rhs = rhs.into_iter().sum();
-
-        if lhs == rhs {
-            if self.shares.insert(sender_id, share.0.clone()).is_none() {
-                // First part of the commitment is a public key share
-                self.pk_parts.push(commitment.elems[0]);
-                Ok(())
-            } else {
-                Err(CryptoError::ShareDuplicated)
-            }
-        } else {
-            Err(CryptoError::ShareRejected)
-        }
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn min_trustees(&self) -> usize {
-        self.min_trustees
-    }
-
-    pub fn trustee_count(&self) -> usize {
-        self.trustee_count
-    }
-}
-
-impl Threshold for ThresholdGenerator {
-    type Error = CryptoError;
-    type Destination = ThresholdParty;
-
-    fn is_complete(&self) -> bool {
-        self.shares.len() == self.trustee_count as usize
-    }
-
-    // Returns a completed object if the key generation is done, otherwise None.
-    fn finish(&self) -> Result<ThresholdParty, CryptoError> {
-        if self.is_complete() {
-            let secret_share = Scalar(self.shares.values().sum());
-            let pubkey_share = self.ctx.g_to(&secret_share);
-
-            let pubkey = PublicKey::new(self.pk_parts.clone().into_iter().sum());
-
-            Ok(ThresholdParty {
-                ctx: self.ctx.clone(),
-                index: self.index,
-                min_trustees: self.min_trustees,
-                trustee_count: self.trustee_count,
-                secret_share,
-                pubkey_share,
-                pubkey,
-            })
-        } else {
-            Err(CryptoError::KeygenMissing)
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PubkeyProof(CurveElem);
-
-impl AsBase64 for PubkeyProof {
-    type Error = CryptoError;
-
-    fn as_base64(&self) -> String {
-        self.0.as_base64()
-    }
-
-    fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
-        Ok(Self(CurveElem::try_from_base64(encoded)?))
-    }
-}
-
-pub struct ThresholdParty {
-    ctx: CryptoContext,
-    index: usize,
-    min_trustees: usize,
-    trustee_count: usize,
-    secret_share: Scalar,
-    pubkey_share: CurveElem,
-    pubkey: PublicKey,
-}
-
-impl Clone for ThresholdParty {
-    fn clone(&self) -> Self {
-        Self {
-            ctx: self.ctx.clone(),
-            index: self.index,
-            min_trustees: self.min_trustees,
-            trustee_count: self.trustee_count,
-            secret_share: self.secret_share.clone(),
-            pubkey_share: self.pubkey_share.clone(),
-            pubkey: self.pubkey.clone(),
-        }
-    }
-}
-
-impl ThresholdParty {
-    pub fn from_existing(
-        ctx: &CryptoContext,
-        index: usize,
-        min_trustees: usize,
-        trustee_count: usize,
-        secret_share: Scalar,
-        pubkey_proof: PubkeyProof,
-        pubkey: PublicKey
-    ) -> Self {
-        Self {
-            ctx: ctx.clone(),
-            index,
-            min_trustees,
-            trustee_count,
-            secret_share,
-            pubkey_share: pubkey_proof.0,
-            pubkey
-        }
-    }
-    
-    pub fn pubkey(&self) -> PublicKey {
-        self.pubkey
-    }
-
-    // Returns this party's share of the public key, but unscaled so it can be used for proofs.
-    pub fn pubkey_proof(&self) -> PubkeyProof {
-        PubkeyProof(self.pubkey_share)
-    }
-
-    pub fn private_share(&self) -> Scalar { self.secret_share.clone() }
-
-    // Returns this party's share of a decryption.
-    pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
-        let dec_share = ct.c1.scaled(&self.secret_share);
-
-        let proof = zkp::PrfDecryption::new(
-            &self.ctx,
-            ct.clone(),
-            dec_share.clone(),
-            self.secret_share.clone(),
-            self.pubkey_share.clone());
-
-        DecryptShare { share: dec_share, proof }
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn min_trustees(&self) -> usize {
-        self.min_trustees
-    }
-
-    pub fn trustee_count(&self) -> usize {
-        self.trustee_count
-    }
-}
-
-// Lagrange coefficient calculation
-fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
-    let mut numerator = 1;
-    let mut denominator = 1;
-    for l in parties {
-        let l = l as i32;
-        let j = j as i32;
-        if l != j {
-            numerator *= l;
-            denominator *= l - j;
-        }
-    }
-
-    let result = numerator / denominator;
-
-    // Convert signed int to scalar
-    if result < 0 {
-        -DalekScalar::from((-result) as u32)
-    } else {
-        DalekScalar::from(result as u32)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct DecryptShare {
-    share: CurveElem,
-    proof: zkp::PrfDecryption,
-}
-
-#[derive(Debug)]
-pub struct Decryption {
-    min_trustees: usize,
-    ctx: CryptoContext,
-    ct: Ciphertext,
-    pubkey_proofs: HashMap<usize, PubkeyProof>,
-    dec_shares: HashMap<usize, DecryptShare>,
-}
-
-impl Decryption {
-    pub fn new(min_trustees: usize, ctx: &CryptoContext, ct: &Ciphertext) -> Self {
-        Self {
-            min_trustees,
-            ctx: ctx.clone(),
-            ct: ct.clone(),
-            pubkey_proofs: HashMap::new(),
-            dec_shares: HashMap::new(),
-        }
-    }
-
-    pub fn add_share(&mut self, party_id: usize, party_pubkey_proof: &PubkeyProof, share: &DecryptShare) {
-        self.dec_shares.insert(party_id, share.clone());
-        self.pubkey_proofs.insert(party_id, party_pubkey_proof.clone());
-    }
-
-    fn verify(&self) -> bool {
-        let mut results = self.dec_shares.keys()
-            .map(|index| (&self.dec_shares[index], &self.pubkey_proofs[index]))
-            .map(|(share, pubkey_proof)| {
-                let proof = &share.proof;
-
-                // Verify the proof, and that the parameters are what they're supposed to be
-                proof.verify()
-                    && proof.public_key == pubkey_proof.0
-                    && proof.ct == self.ct
-                    && proof.dec_factor == share.share
-                    && proof.g == self.ctx.generator()
-            });
-
-        self.is_complete() && results.all(identity)
-    }
-}
-
-impl Threshold for Decryption {
-    type Error = CryptoError;
-    type Destination = CurveElem;
-
-    fn is_complete(&self) -> bool {
-        self.dec_shares.len() as usize >= self.min_trustees
-    }
-
-    fn finish(&self) -> Result<Self::Destination, Self::Error> {
-        if self.is_complete() {
-            if self.verify() {
-                let dec_factor = self.dec_shares.keys()
-                    .map(|index| (index, &self.dec_shares[index]))
-                    .map(|(index, share)| {
-                        let participants = self.dec_shares.keys().map(|&index| index);
-                        let lagrange = Scalar(lambda(participants, *index));
-                        share.share.scaled(&lagrange)
-                    })
-                    .sum();
-                Ok(self.ct.c2 - dec_factor)
-            } else {
-                Err(CryptoError::ShareRejected)
-            }
-        } else {
-            Err(CryptoError::KeygenMissing)
-        }
+        ).is_ok()
     }
 }
 
 #[cfg(test)]
-mod test {
-    use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty, Threshold};
-    use crate::elgamal::{CryptoContext, CurveElem};
-    use std::collections::HashMap;
-    use std::convert::TryInto;
-    use crate::util::AsBase64;
-
-    fn run_generation(ctx: &CryptoContext) -> Vec<ThresholdGenerator> {
-        const K: usize = 3;
-        const N: usize = 5;
-
-        // Generate N parties
-        let mut generators: Vec<_> = (1..N + 1)
-            .map(|i| ThresholdGenerator::new(ctx, i, K, N))
-            .collect();
-
-        // Generate the commitments
-        let mut commitments = HashMap::new();
-        generators.iter().for_each(|party| {
-            commitments.insert(party.index, party.get_commitment());
-        });
-
-        // Send the commitments
-        commitments.iter().for_each(|(&sender_id, commitment)| {
-            generators.iter_mut().for_each(|receiver| {
-                receiver.receive_commitment(sender_id, commitment).unwrap()
-            });
-        });
-
-        // Generate the shares
-        let mut shares = HashMap::new();
-        generators.iter().for_each(|receiver| {
-            let mut receiver_shares = HashMap::new();
-            generators.iter().for_each(|sender| {
-                let share = sender.get_polynomial_share(receiver.index).unwrap();
-                receiver_shares.insert(sender.index, share);
-            });
-            shares.insert(receiver.index, receiver_shares);
-        });
-
-        // Send the shares
-        shares.iter().for_each(|(&receiver_id, share_set)| {
-            share_set.iter().for_each(|(&sender_id, share)| {
-                generators[(receiver_id - 1) as usize]
-                    .receive_share(sender_id, share)
-                    .expect(&format!("{} rejected share from {}", receiver_id, sender_id));
-            });
-        });
-
-        generators
-    }
-
-    fn complete_parties(generators: Vec<ThresholdGenerator>) -> Vec<ThresholdParty> {
-        generators.iter()
-            .map(|p| p.finish().unwrap())
-            .collect()
-    }
-
-    fn get_parties(ctx: &CryptoContext) -> Vec<ThresholdParty> {
-        complete_parties(run_generation(ctx))
-    }
+mod tests {
+    use crate::threshold::{Guardian, GuardianParams};
+    use rand::SeedableRng;
+    use rand::rngs::StdRng;
 
     #[test]
-    fn test_commitment_serde() {
-        const K: usize = 3;
-        const N: usize = 5;
-
-        let ctx = CryptoContext::new().unwrap();
-        let generator = ThresholdGenerator::new(&ctx, 1, K, N);
-        let commit = generator.get_commitment();
-        let commit_decoded = commit.to_string().as_str().try_into().unwrap();
-
-        assert_eq!(commit, commit_decoded)
-    }
-
-    #[test]
-    fn test_keygen() {
-        let ctx = CryptoContext::new().unwrap();
-        let generators = run_generation(&ctx);
-
-        // Store the intended public key
-        let pubkey: CurveElem = generators.iter().map(|party| {
-            ctx.g_to(&party.polynomial.x_i)
-        }).sum();
-        let parties = complete_parties(generators);
-
-        // Compute the final public key
-        let y = parties[0].pubkey();
-
-        assert_eq!(pubkey, y.y);
-        parties.iter().for_each(|party| {
-            assert_eq!(pubkey.as_base64(), party.pubkey.as_base64());
-        });
-    }
-
-    #[test]
-    fn test_decrypt() {
-        let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
-        let pk = parties.first().unwrap().pubkey();
-
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
-
-        let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
-
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
-
-        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
-    }
-
-    #[test]
-    fn test_decrypt_partial() {
-        let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
-        let pk = parties.first().unwrap().pubkey();
-
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
-
-        let k = parties.first().unwrap().min_trustees;
-        parties.truncate(k as usize);
-
-        let mut decrypted = Decryption::new(k, &ctx, &ct);
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
-
-        assert!(decrypted.verify());
-        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
-    }
-
-    #[test]
-    fn test_decrypt_not_enough() {
-        let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
-        let pk = parties.first().unwrap().pubkey();
-
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
-
-        let k = parties.first().unwrap().min_trustees;
-        parties.truncate((k - 1) as usize);
-
-        let mut decrypted = Decryption::new(k, &ctx, &ct);
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
-
-        assert!(!decrypted.verify());
-        assert!(decrypted.finish().is_err())
+    fn create_and_verify() {
+        let mut rng = StdRng::from_entropy();
+        let params = GuardianParams {
+            threshold_count: 10,
+            total_count: 20,
+            base_hash: b"hello world".to_vec(),
+        };
+        let guardian = Guardian::new(params, &mut rng);
+        let commit = guardian.gen_commitments();
+        assert!(commit.verify());
     }
 }

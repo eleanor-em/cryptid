@@ -1,23 +1,21 @@
 [package]
 name = "cryptid"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Eleanor McMurtry <elmcmurtry1@gmail.com>"]
 edition = "2018"
-description = "An implementation of the threshold ElGamal cryptosystem with zero-knowledge proofs, using Curve25519 as the group."
-license = "MIT"
+description = "An implementation of the threshold ElGamal cryptosystem with zero-knowledge proofs, using Ristretto255 as the group."
+license = "Apache-2.0"
 repository = "https://github.com/noneuclideangirl/cryptid"
 
-[lib]
-path = "src/lib.rs"
-
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-num-bigint = { version = "0", features = ["rand", "serde"] }
-ring = "0"
-curve25519-dalek = { version = "2", features = ["serde", "std"] }
-num-traits = "0"
-base64 = "0"
-rand_chacha = "0"
-rand = "0"
-rayon = "1.3"
+rand_core = { version = "0.6", default_features = false }
+rust-elgamal = { version = "0.3", features = ["enable-serde"] }
+serde = { version = "1", default_features = false, features = ["derive"] }
+sha2 = "0.9"
+zkp = "0.8"
+# Temporary until I figure out what's going on with hdevalence and *-ng
+curve25519-dalek = { package = "curve25519-dalek-ng", version = "3", default-features = false, features = ["serde", "std"] }
+
+[dev-dependencies]
+bincode = "1"
+rand = { version = "0.8" }
