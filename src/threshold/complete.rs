@@ -1,5 +1,6 @@
 use rust_elgamal::{EncryptionKey, Scalar, RistrettoPoint, Ciphertext};
 use rand_core::{CryptoRng, RngCore};
+use crate::threshold::GuardianParams;
 
 pub struct PartialDecryptionProof {
     _ct: Ciphertext,
@@ -8,6 +9,7 @@ pub struct PartialDecryptionProof {
 }
 
 pub struct Guardian {
+    pub(crate) params: GuardianParams,
     pub(crate) enc_key: EncryptionKey,
     pub(crate) dec_share: Scalar,
     pub(crate) base_hash: RistrettoPoint,
@@ -28,6 +30,10 @@ impl Guardian {
             _ct: ct,
             _share: share,
         }
+    }
+
+    pub fn params(&self) -> &GuardianParams {
+        &self.params
     }
 
     pub fn base_hash(&self) -> &RistrettoPoint {

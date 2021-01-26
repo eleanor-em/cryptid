@@ -3,6 +3,7 @@ use rust_elgamal::{DecryptionKey, Scalar, RistrettoPoint, MultiscalarMul};
 use std::collections::{HashMap, HashSet};
 use crate::threshold::sharing::EncryptedShares;
 use crate::common::EncryptionProof;
+use sha2::{Digest, Sha512};
 
 pub struct VerifyingGuardian {
     index: usize,
@@ -87,18 +88,27 @@ impl VerifyingGuardian {
         self.unverified.len() <= self.params.total_count - self.params.threshold_count
     }
 
-    pub fn finalise(self) -> Option<Guardian> {
+    pub fn finalise(mut self) -> Option<Guardian> {
         if self.is_complete() {
-            let enc_key = self.commits.into_iter()
+            let enc_key = self.commits.iter()
                 .map(|(_, commit)| commit.commitments[0])
                 .sum::<RistrettoPoint>()
                 .into();
 
+            let mut hasher = sha2::Sha512::new()
+                .chain(&self.params.base_hash);
+            for i in 1..(self.params.total_count + 1) {
+                for commit in self.commits.remove(&i).unwrap().commitments {
+                    hasher.update(commit.compress().as_bytes());
+                }
+            }
+            let base_hash = RistrettoPoint::hash_from_bytes::<Sha512>(hasher.finalize().as_slice());
 
             Some(Guardian {
+                params: self.params,
                 enc_key,
                 dec_share: self.dec_share,
-                base_hash: Default::default()
+                base_hash,
             })
         } else {
             None
