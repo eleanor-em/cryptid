@@ -9,13 +9,11 @@ repository = "https://github.com/noneuclideangirl/cryptid"
 
 [dependencies]
 rand_core = { version = "0.6", default_features = false }
-rust-elgamal = { version = "0.3", features = ["enable-serde"] }
+rust-elgamal = { git = "https://github.com/eleanor-em/rust-elgamal.git", branch = "ng", version = "0.3", features = ["enable-serde"] }
 serde = { version = "1", default_features = false, features = ["derive"] }
 sha2 = "0.9"
 zkp = "0.8"
-# Temporary until I figure out what's going on with hdevalence and *-ng
-curve25519-dalek = { package = "curve25519-dalek-ng", version = "3", default-features = false, features = ["serde", "std"] }
+bincode = "1"
 
 [dev-dependencies]
-bincode = "1"
 rand = { version = "0.8" }
