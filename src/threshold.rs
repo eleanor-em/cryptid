@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::convert::{identity, TryFrom};
 use std::error::Error;
 use std::fmt;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 use serde::{Serialize, Deserialize};
-use serde::export::Formatter;
 
 use crate::curve::{ CurveElem, Polynomial };
 use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};

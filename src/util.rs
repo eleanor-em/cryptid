@@ -13,7 +13,7 @@ macro_rules! base64_serde {
     ($name:ty) => {
         mod base64_serde_inner {
             use serde::de;
-            use serde::export::fmt;
+            use std::fmt;
             use super::AsBase64;
 
             pub struct Base64Visitor;

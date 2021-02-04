@@ -3,8 +3,7 @@ use serde::{Serialize, Deserialize};
 use crate::{Hasher, Scalar, AsBase64, CryptoError};
 use crate::curve::CurveElem;
 use crate::elgamal::{CryptoContext, Ciphertext};
-use std::fmt::Display;
-use serde::export::Formatter;
+use std::fmt::{Display, Formatter};
 use std::convert::TryFrom;
 
 const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";

@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Debug, Display};
 use serde::{Serialize, Deserialize};
 
-use serde::export::Formatter;
+use std::fmt::Formatter;
 
 use crate::elgamal::{CurveElem, Ciphertext};
 use crate::{Hasher, AsBase64};

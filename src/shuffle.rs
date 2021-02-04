@@ -7,9 +7,8 @@ use crate::{CryptoError, Scalar, Hasher};
 use crate::commit::PedersenCtx;
 use serde::{Serialize, Deserialize};
 use crate::curve::CurveElem;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use std::fmt;
-use serde::export::Formatter;
 
 // See https://fc17.ifca.ai/voting/papers/voting17_HLKD17.pdf
 
@@ -24,7 +23,7 @@ impl Permutation {
         let mut nums: Vec<_> = (0..n).collect();
 
         for i in 0..n {
-            let k = rng.gen_range(i, n);
+            let k = rng.gen_range(i..n);
             map.push(nums[k]);
             nums[k] = nums[i];
         }
