@@ -2,7 +2,6 @@ use crate::threshold::{GuardianParams, GuardianCommit, GuardianError, InitGuardi
 use rust_elgamal::{DecryptionKey, Scalar, RistrettoPoint, Ciphertext, GENERATOR_TABLE};
 use std::collections::HashMap;
 use rand_core::{CryptoRng, RngCore};
-use rust_elgamal::util::random_scalar;
 use crate::threshold::verifying::VerifyingGuardian;
 
 pub(crate) struct EncryptedShares(HashMap<(usize, usize), Ciphertext>);
@@ -29,7 +28,7 @@ pub struct SharingGuardian {
     pub(crate) index: usize,
     pub(crate) params: GuardianParams,
     pub(crate) key: DecryptionKey,
-    pub(crate) dec_share: Scalar,
+    pub(crate) dec_key_share: Scalar,
     pub(crate) commits: HashMap<usize, GuardianCommit>,
     pub(crate) shares: EncryptedShares,
     pub(crate) share_points: HashMap<usize, RistrettoPoint>,
@@ -45,7 +44,7 @@ impl SharingGuardian {
             index: from.index,
             params: from.params,
             key: from.key,
-            dec_share: from.coefficients[0],
+            dec_key_share: from.coefficients[0],
             commits: from.commits,
             shares: EncryptedShares::new(),
             share_points: HashMap::new(),
@@ -66,7 +65,7 @@ impl SharingGuardian {
                 .map(|(j, coeff)| coeff * Scalar::from(x.pow(j as u32)))
                 .sum();
             let point = &scalar * &GENERATOR_TABLE;
-            let nonce = random_scalar(&mut rng);
+            let nonce = Scalar::random(&mut rng);
             result.shares.insert(result.index, index, result.commits[&index].enc_key.encrypt_with(point, nonce));
             result.share_points.insert(index, point);
             result.share_nonces.insert(index, nonce);

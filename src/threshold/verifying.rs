@@ -9,12 +9,12 @@ pub struct VerifyingGuardian {
     index: usize,
     params: GuardianParams,
     key: DecryptionKey,
-    dec_share: Scalar,
+    dec_key_share: Scalar,
     commits: HashMap<usize, GuardianCommit>,
     shares: EncryptedShares,
     share_points: HashMap<usize, RistrettoPoint>,
     share_nonces: HashMap<usize, Scalar>,
-    unverified: HashSet<usize>,
+    received_shares: HashMap<usize, RistrettoPoint>,
 }
 
 impl VerifyingGuardian {
@@ -23,12 +23,12 @@ impl VerifyingGuardian {
             index: from.index,
             params: from.params,
             key: from.key,
-            dec_share: from.dec_share,
+            dec_key_share: from.dec_key_share,
             commits: from.commits,
             shares: from.shares,
             share_points: from.share_points,
             share_nonces: from.share_nonces,
-            unverified: HashSet::new(),
+            received_shares: HashMap::new(),
         };
 
         // All shares MUST have been received.
@@ -45,16 +45,18 @@ impl VerifyingGuardian {
             });
             let rhs = RistrettoPoint::multiscalar_mul(rhs_powers, &result.commits[&from].commitments);
 
-            if lhs != rhs {
-                result.unverified.insert(from);
+            if lhs == rhs {
+                result.received_shares.insert(from, rhs);
             }
         }
 
         result
     }
 
-    pub fn unverified(&self) -> &HashSet<usize> {
-        &self.unverified
+    pub fn unverified(&self) -> HashSet<usize> {
+        (1..(self.params.total_count + 1))
+            .filter(|i| !self.received_shares.contains_key(i))
+            .collect()
     }
 
     pub fn reveal_share(&mut self, to: usize) -> EncryptionProof {
@@ -85,7 +87,7 @@ impl VerifyingGuardian {
     }
 
     pub fn is_complete(&self) -> bool {
-        self.unverified.len() <= self.params.total_count - self.params.threshold_count
+        self.received_shares.len() >= self.params.threshold_count
     }
 
     pub fn finalise(mut self) -> Option<Guardian> {
@@ -94,6 +96,11 @@ impl VerifyingGuardian {
                 .map(|(_, commit)| commit.commitments[0])
                 .sum::<RistrettoPoint>()
                 .into();
+
+            let mut enc_key_shares = HashMap::new();
+            for (index, commit) in self.commits.iter() {
+                enc_key_shares.insert(*index, commit.commitments[0].clone());
+            }
 
             let mut hasher = sha2::Sha512::new()
                 .chain(&self.params.base_hash);
@@ -105,9 +112,11 @@ impl VerifyingGuardian {
             let base_hash = RistrettoPoint::hash_from_bytes::<Sha512>(hasher.finalize().as_slice());
 
             Some(Guardian {
+                index: self.index,
                 params: self.params,
                 enc_key,
-                dec_share: self.dec_share,
+                enc_key_shares,
+                dec_key_share: self.dec_key_share,
                 base_hash,
             })
         } else {

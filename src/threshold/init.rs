@@ -1,76 +1,12 @@
 #![allow(non_snake_case)]
 use rand_core::{RngCore, CryptoRng};
 use rust_elgamal::{DecryptionKey, Scalar, RistrettoPoint, CompressedRistretto, EncryptionKey, GENERATOR_POINT, GENERATOR_POINT_COMPRESSED, GENERATOR_TABLE};
-use rust_elgamal::util::random_scalar;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use zkp::Transcript;
 use std::collections::HashMap;
 use crate::threshold::{GuardianParams, GuardianError, GuardianCommit};
 use crate::threshold::sharing::SharingGuardian;
-
-define_proof! {
-    coeff_knowledge,
-    "Proof of Knowledge of Coefficients",
-    (a),            // coefficient
-    (K, Q),         // commitment and base hash respectively
-    (G) :           // group generator
-    K = (a * G)
-}
-
-const COEFF_KNOWLEDGE_TAG: &'static [u8] = b"CRYPTID_KEYGEN_COMMIT";
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct GuardianCommitProof {
-    params: GuardianParams,
-    proofs: Vec<coeff_knowledge::BatchableProof>,
-    commitments: Vec<CompressedRistretto>,
-    enc_key: EncryptionKey,
-}
-
-impl GuardianCommitProof {
-    pub fn len(&self) -> usize {
-        self.params.threshold_count
-    }
-
-    pub fn params(&self) -> GuardianParams {
-        self.params.clone()
-    }
-
-    pub fn verify(self) -> Result<GuardianCommit, GuardianError> {
-        if self.params.threshold_count != self.commitments.len()
-            || self.params.threshold_count != self.proofs.len() {
-            Err(GuardianError::InvalidProofLength)
-        } else {
-            // Fold init parameters into hash
-            let base_hash = RistrettoPoint::hash_from_bytes::<Sha512>(&self.params.to_vec())
-                .compress();
-            let base_hashes = vec![base_hash; self.len()];
-
-            let tx = Transcript::new(COEFF_KNOWLEDGE_TAG);
-            let mut transcripts = vec![tx; self.len()];
-
-            if let Ok(_) = coeff_knowledge::batch_verify(
-                &self.proofs,
-                transcripts.iter_mut().collect(),
-                coeff_knowledge::BatchVerifyAssignments {
-                    K: self.commitments.clone(),
-                    Q: base_hashes,
-                    G: GENERATOR_POINT_COMPRESSED,
-                }
-            ) {
-                let commitments = self.commitments
-                    .into_iter()
-                    // Decompressing will always succeed if the proof passes
-                    .map(|pt| pt.decompress().unwrap())
-                    .collect();
-                Ok(GuardianCommit { commitments, enc_key: self.enc_key })
-            } else {
-                Err(GuardianError::InvalidProof)
-            }
-        }
-    }
-}
 
 pub struct InitGuardian {
     pub(crate) index: usize,
@@ -96,7 +32,7 @@ impl InitGuardian {
         let mut coefficients = Vec::with_capacity(params.threshold_count);
         coefficients.push(key.as_ref().clone());
         for _ in 1..params.threshold_count {
-            coefficients.push(random_scalar(&mut rng));
+            coefficients.push(Scalar::random(&mut rng));
         }
 
         // Key for communication
@@ -164,6 +100,70 @@ impl InitGuardian {
             Some(SharingGuardian::new(self, rng))
         } else {
             None
+        }
+    }
+}
+
+
+define_proof! {
+    coeff_knowledge,
+    "Proof of Knowledge of Coefficients",
+    (a),            // coefficient
+    (K, Q),         // commitment and base hash respectively
+    (G) :           // group generator
+    K = (a * G)
+}
+
+const COEFF_KNOWLEDGE_TAG: &'static [u8] = b"CRYPTID_KEYGEN_COMMIT";
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct GuardianCommitProof {
+    params: GuardianParams,
+    proofs: Vec<coeff_knowledge::BatchableProof>,
+    commitments: Vec<CompressedRistretto>,
+    enc_key: EncryptionKey,
+}
+
+impl GuardianCommitProof {
+    pub fn len(&self) -> usize {
+        self.params.threshold_count
+    }
+
+    pub fn params(&self) -> GuardianParams {
+        self.params.clone()
+    }
+
+    pub fn verify(self) -> Result<GuardianCommit, GuardianError> {
+        if self.params.threshold_count != self.commitments.len()
+            || self.params.threshold_count != self.proofs.len() {
+            Err(GuardianError::InvalidProofLength)
+        } else {
+            // Fold init parameters into hash
+            let base_hash = RistrettoPoint::hash_from_bytes::<Sha512>(&self.params.to_vec())
+                .compress();
+            let base_hashes = vec![base_hash; self.len()];
+
+            let tx = Transcript::new(COEFF_KNOWLEDGE_TAG);
+            let mut transcripts = vec![tx; self.len()];
+
+            if let Ok(_) = coeff_knowledge::batch_verify(
+                &self.proofs,
+                transcripts.iter_mut().collect(),
+                coeff_knowledge::BatchVerifyAssignments {
+                    K: self.commitments.clone(),
+                    Q: base_hashes,
+                    G: GENERATOR_POINT_COMPRESSED,
+                }
+            ) {
+                let commitments = self.commitments
+                    .into_iter()
+                    // Decompressing will always succeed if the proof passes
+                    .map(|pt| pt.decompress().unwrap())
+                    .collect();
+                Ok(GuardianCommit { commitments, enc_key: self.enc_key })
+            } else {
+                Err(GuardianError::InvalidProof)
+            }
         }
     }
 }

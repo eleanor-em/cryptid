@@ -9,7 +9,7 @@ repository = "https://github.com/noneuclideangirl/cryptid"
 
 [dependencies]
 rand_core = { version = "0.6", default_features = false }
-rust-elgamal = { git = "https://github.com/eleanor-em/rust-elgamal.git", branch = "ng", version = "0.3", features = ["enable-serde"] }
+rust-elgamal = { version = "0.4", features = ["enable-serde"] }
 serde = { version = "1", default_features = false, features = ["derive"] }
 sha2 = "0.9"
 zkp = "0.8"
