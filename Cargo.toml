@@ -12,7 +12,7 @@ rand_core = { version = "0.6", default_features = false }
 rust-elgamal = { version = "0.4", features = ["enable-serde"] }
 serde = { version = "1", default_features = false, features = ["derive"] }
 sha2 = "0.9"
-zkp = "0.8"
+zkp = { git = "https://github.com/eleanor-em/zkp", branch = "main" }
 bincode = "1"
 
 [dev-dependencies]

@@ -14,7 +14,7 @@ pub struct Guardian {
 }
 
 impl Guardian {
-    pub fn encrypt<R: CryptoRng + RngCore>(&self, m: RistrettoPoint, rng: R) -> Ciphertext {
+    pub fn encrypt<R: CryptoRng + RngCore>(&self, m: RistrettoPoint, rng: &mut R) -> Ciphertext {
         self.enc_key.encrypt(m, rng)
     }
 
