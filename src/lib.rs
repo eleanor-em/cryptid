@@ -1,11 +1,11 @@
 pub mod commit;
+mod curve;
 pub mod elgamal;
+mod scalar;
 pub mod shuffle;
 pub mod threshold;
 pub mod util;
 pub mod zkp;
-mod scalar;
-mod curve;
 
 use std::convert::TryInto;
 use std::error::Error;

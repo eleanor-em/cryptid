@@ -1,13 +1,13 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Debug, Display};
-use serde::{Serialize, Deserialize};
 
 use std::fmt::Formatter;
 
-use crate::elgamal::{CurveElem, Ciphertext};
-use crate::{Hasher, AsBase64};
-use crate::Scalar;
+use crate::elgamal::{Ciphertext, CurveElem};
 use crate::threshold::EncodingError;
+use crate::Scalar;
+use crate::{AsBase64, Hasher};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use std::convert::TryFrom;
 
@@ -27,30 +27,39 @@ impl PedersenCtx {
     pub fn with_generators(seed: &[u8], num_generators: usize) -> (PedersenCtx, Vec<CurveElem>) {
         let mut counter: usize = 0;
 
-        let g = RistrettoPoint::from_uniform_bytes(&Hasher::sha_512()
-            .and_update(seed)
-            .and_update(&counter.to_be_bytes())
-            .finish_64_bytes().unwrap())
-            .into();
-
-        counter += 1;
-
-        let h = RistrettoPoint::from_uniform_bytes(&Hasher::sha_512()
-            .and_update(seed)
-            .and_update(&counter.to_be_bytes())
-            .finish_64_bytes().unwrap())
-            .into();
-        counter += 1;
-
-        let generators = (0..num_generators).map(|_| {
-            let bytes = Hasher::sha_512()
+        let g = RistrettoPoint::from_uniform_bytes(
+            &Hasher::sha_512()
                 .and_update(seed)
                 .and_update(&counter.to_be_bytes())
-                .finish_64_bytes().unwrap();
-            counter += 1;
+                .finish_64_bytes()
+                .unwrap(),
+        )
+        .into();
 
-            RistrettoPoint::from_uniform_bytes(&bytes).into()
-        }).collect();
+        counter += 1;
+
+        let h = RistrettoPoint::from_uniform_bytes(
+            &Hasher::sha_512()
+                .and_update(seed)
+                .and_update(&counter.to_be_bytes())
+                .finish_64_bytes()
+                .unwrap(),
+        )
+        .into();
+        counter += 1;
+
+        let generators = (0..num_generators)
+            .map(|_| {
+                let bytes = Hasher::sha_512()
+                    .and_update(seed)
+                    .and_update(&counter.to_be_bytes())
+                    .finish_64_bytes()
+                    .unwrap();
+                counter += 1;
+
+                RistrettoPoint::from_uniform_bytes(&bytes).into()
+            })
+            .collect();
 
         let ctx = Self { g, h };
         (ctx, generators)
@@ -66,7 +75,7 @@ impl PedersenCtx {
         Commitment {
             g: self.g.clone(),
             h: self.h.clone(),
-            value: self.g.scaled(&x) + self.h.scaled(&r)
+            value: self.g.scaled(&x) + self.h.scaled(&r),
         }
     }
 
@@ -88,7 +97,13 @@ pub struct Commitment {
 
 impl Display for Commitment {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.g.as_base64(), self.h.as_base64(), self.value.as_base64())
+        write!(
+            f,
+            "{}:{}:{}",
+            self.g.as_base64(),
+            self.h.as_base64(),
+            self.value.as_base64()
+        )
     }
 }
 
@@ -107,7 +122,8 @@ impl TryFrom<&str> for Commitment {
             return Err(EncodingError::Length);
         }
 
-        let mut elems: Vec<_> = elems.into_iter()
+        let mut elems: Vec<_> = elems
+            .into_iter()
             .map(|s| CurveElem::try_from_base64(s))
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Base64)?;
@@ -123,8 +139,9 @@ impl TryFrom<&str> for Commitment {
 
 impl Commitment {
     pub fn validate(&self, commit_ctx: &PedersenCtx, x: &Scalar, r: &Scalar) -> bool {
-        self.g == commit_ctx.g && self.h == commit_ctx.h &&
-            self.value == self.g.scaled(&x) + self.h.scaled(&r)
+        self.g == commit_ctx.g
+            && self.h == commit_ctx.h
+            && self.value == self.g.scaled(&x) + self.h.scaled(&r)
     }
 }
 
@@ -155,7 +172,8 @@ impl TryFrom<&str> for CtCommitment {
             return Err(EncodingError::Length);
         }
 
-        let mut elems: Vec<_> = elems.into_iter()
+        let mut elems: Vec<_> = elems
+            .into_iter()
             .map(|s| Commitment::try_from(s))
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Commitment)?;
@@ -169,7 +187,12 @@ impl TryFrom<&str> for CtCommitment {
 }
 
 impl CtCommitment {
-    pub fn validate(&self, commit_ctx: &PedersenCtx, ct: &Ciphertext, rs: (&Scalar, &Scalar)) -> bool {
+    pub fn validate(
+        &self,
+        commit_ctx: &PedersenCtx,
+        ct: &Ciphertext,
+        rs: (&Scalar, &Scalar),
+    ) -> bool {
         self.a.validate(commit_ctx, &ct.c1.into(), rs.0)
             && self.b.validate(commit_ctx, &ct.c2.into(), rs.1)
     }
@@ -177,8 +200,8 @@ impl CtCommitment {
 
 #[cfg(test)]
 mod tests {
+    use crate::commit::{Commitment, CtCommitment, PedersenCtx};
     use crate::elgamal::{CryptoContext, PublicKey};
-    use crate::commit::{PedersenCtx, Commitment, CtCommitment};
     use rand::RngCore;
     use std::convert::TryFrom;
 
@@ -254,7 +277,10 @@ mod tests {
         let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
         assert!(commitment.validate(&commit_ctx, &ct, (&r1, &r2)));
-        assert_eq!(commitment.validate(&commit_ctx, &ct_prime, (&r1_prime, &r2_prime)), false);
+        assert_eq!(
+            commitment.validate(&commit_ctx, &ct_prime, (&r1_prime, &r2_prime)),
+            false
+        );
     }
 
     #[test]
