@@ -1,10 +1,10 @@
-use crate::{base64_serde, CryptoError, AsBase64};
+use crate::curve::CurveElem;
+use crate::{base64_serde, AsBase64, CryptoError};
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
-use std::ops::{Add, Mul, Neg};
-use std::iter::{Sum, Product};
 use std::convert::{TryFrom, TryInto};
-use crate::curve::CurveElem;
+use std::iter::{Product, Sum};
+use std::ops::{Add, Mul, Neg};
 
 pub(crate) type DalekScalar = InternalDalekScalar;
 
@@ -83,13 +83,13 @@ impl Neg for Scalar {
 }
 
 impl Sum<Scalar> for Scalar {
-    fn sum<I: Iterator<Item=Scalar>>(iter: I) -> Self {
+    fn sum<I: Iterator<Item = Scalar>>(iter: I) -> Self {
         iter.fold(Scalar(DalekScalar::zero()), |a, b| a + b)
     }
 }
 
 impl Product<Scalar> for Scalar {
-    fn product<I: Iterator<Item=Scalar>>(iter: I) -> Self {
+    fn product<I: Iterator<Item = Scalar>>(iter: I) -> Self {
         iter.fold(Scalar(DalekScalar::one()), |a, b| a * b)
     }
 }
@@ -183,8 +183,8 @@ impl Into<BigUint> for Scalar {
 
 #[cfg(test)]
 mod tests {
-    use num_bigint::BigUint;
     use crate::elgamal::CryptoContext;
+    use num_bigint::BigUint;
 
     #[test]
     fn test_biguint_scalar() {

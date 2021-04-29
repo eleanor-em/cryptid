@@ -4,13 +4,13 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::curve::{ CurveElem, Polynomial };
-use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
-use crate::{zkp, CryptoError, Scalar};
-use crate::util::AsBase64;
+use crate::curve::{CurveElem, Polynomial};
+use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
 use crate::scalar::DalekScalar;
+use crate::util::AsBase64;
+use crate::{zkp, CryptoError, Scalar};
 
 #[derive(Clone, Copy, Debug)]
 pub enum EncodingError {
@@ -94,7 +94,12 @@ impl ThresholdGenerator {
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
-    pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize) -> Self {
+    pub fn new(
+        ctx: &CryptoContext,
+        index: usize,
+        min_trustees: usize,
+        trustee_count: usize,
+    ) -> Self {
         if index > 0 && index <= trustee_count {
             let ctx = ctx.clone();
             let f_i = Polynomial::random(&ctx, min_trustees, trustee_count);
@@ -106,7 +111,16 @@ impl ThresholdGenerator {
             let commitments = HashMap::new();
             let pk_parts = Vec::new();
 
-            Self { ctx, index, polynomial: f_i, min_trustees, trustee_count, shares, commitments, pk_parts }
+            Self {
+                ctx,
+                index,
+                polynomial: f_i,
+                min_trustees,
+                trustee_count,
+                shares,
+                commitments,
+                pk_parts,
+            }
         } else {
             panic!("Index must be between 1 and trustee_count inclusive.");
         }
@@ -133,10 +147,17 @@ impl ThresholdGenerator {
     }
 
     // Receives a commitment from a particular party.
-    pub fn receive_commitment(&mut self, sender_id: usize, commitment: &KeygenCommitment)
-                              -> Result<(), CryptoError>{
+    pub fn receive_commitment(
+        &mut self,
+        sender_id: usize,
+        commitment: &KeygenCommitment,
+    ) -> Result<(), CryptoError> {
         if sender_id > 0 && sender_id <= self.trustee_count {
-            if self.commitments.insert(sender_id, commitment.clone()).is_none() {
+            if self
+                .commitments
+                .insert(sender_id, commitment.clone())
+                .is_none()
+            {
                 Ok(())
             } else {
                 Err(CryptoError::CommitmentDuplicated)
@@ -164,11 +185,16 @@ impl ThresholdGenerator {
         let commitment = self.commitments.get(&sender_id).unwrap();
 
         // Verify the commitment
-        let rhs = (0..self.min_trustees).map(|l| {
-            let power = Scalar::from((self.index as u32).pow(l as u32));
-            let base = commitment.elems.get(l).ok_or(CryptoError::CommitmentPartMissing)?;
-            Ok(base.scaled(&power))
-        }).collect::<Result<Vec<_>, _>>()?;
+        let rhs = (0..self.min_trustees)
+            .map(|l| {
+                let power = Scalar::from((self.index as u32).pow(l as u32));
+                let base = commitment
+                    .elems
+                    .get(l)
+                    .ok_or(CryptoError::CommitmentPartMissing)?;
+                Ok(base.scaled(&power))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let rhs = rhs.into_iter().sum();
 
         if lhs == rhs {
@@ -275,7 +301,7 @@ impl ThresholdParty {
         trustee_count: usize,
         secret_share: Scalar,
         pubkey_proof: PubkeyProof,
-        pubkey: PublicKey
+        pubkey: PublicKey,
     ) -> Self {
         Self {
             ctx: ctx.clone(),
@@ -284,10 +310,10 @@ impl ThresholdParty {
             trustee_count,
             secret_share,
             pubkey_share: pubkey_proof.0,
-            pubkey
+            pubkey,
         }
     }
-    
+
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
     }
@@ -297,7 +323,9 @@ impl ThresholdParty {
         PubkeyProof(self.pubkey_share)
     }
 
-    pub fn private_share(&self) -> Scalar { self.secret_share.clone() }
+    pub fn private_share(&self) -> Scalar {
+        self.secret_share.clone()
+    }
 
     // Returns this party's share of a decryption.
     pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
@@ -308,9 +336,13 @@ impl ThresholdParty {
             ct.clone(),
             dec_share.clone(),
             self.secret_share.clone(),
-            self.pubkey_share.clone());
+            self.pubkey_share.clone(),
+        );
 
-        DecryptShare { share: dec_share, proof }
+        DecryptShare {
+            share: dec_share,
+            proof,
+        }
     }
 
     pub fn index(&self) -> usize {
@@ -327,7 +359,7 @@ impl ThresholdParty {
 }
 
 // Lagrange coefficient calculation
-fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
+fn lambda<I: Iterator<Item = usize>>(parties: I, j: usize) -> DalekScalar {
     let mut numerator = 1;
     let mut denominator = 1;
     for l in parties {
@@ -375,13 +407,21 @@ impl Decryption {
         }
     }
 
-    pub fn add_share(&mut self, party_id: usize, party_pubkey_proof: &PubkeyProof, share: &DecryptShare) {
+    pub fn add_share(
+        &mut self,
+        party_id: usize,
+        party_pubkey_proof: &PubkeyProof,
+        share: &DecryptShare,
+    ) {
         self.dec_shares.insert(party_id, share.clone());
-        self.pubkey_proofs.insert(party_id, party_pubkey_proof.clone());
+        self.pubkey_proofs
+            .insert(party_id, party_pubkey_proof.clone());
     }
 
     fn verify(&self) -> bool {
-        let mut results = self.dec_shares.keys()
+        let mut results = self
+            .dec_shares
+            .keys()
             .map(|index| (&self.dec_shares[index], &self.pubkey_proofs[index]))
             .map(|(share, pubkey_proof)| {
                 let proof = &share.proof;
@@ -409,7 +449,9 @@ impl Threshold for Decryption {
     fn finish(&self) -> Result<Self::Destination, Self::Error> {
         if self.is_complete() {
             if self.verify() {
-                let dec_factor = self.dec_shares.keys()
+                let dec_factor = self
+                    .dec_shares
+                    .keys()
                     .map(|index| (index, &self.dec_shares[index]))
                     .map(|(index, share)| {
                         let participants = self.dec_shares.keys().map(|&index| index);
@@ -429,11 +471,11 @@ impl Threshold for Decryption {
 
 #[cfg(test)]
 mod test {
-    use crate::threshold::{ThresholdGenerator, Decryption, ThresholdParty, Threshold};
     use crate::elgamal::{CryptoContext, CurveElem};
+    use crate::threshold::{Decryption, Threshold, ThresholdGenerator, ThresholdParty};
+    use crate::util::AsBase64;
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use crate::util::AsBase64;
 
     fn run_generation(ctx: &CryptoContext) -> Vec<ThresholdGenerator> {
         const K: usize = 3;
@@ -452,9 +494,9 @@ mod test {
 
         // Send the commitments
         commitments.iter().for_each(|(&sender_id, commitment)| {
-            generators.iter_mut().for_each(|receiver| {
-                receiver.receive_commitment(sender_id, commitment).unwrap()
-            });
+            generators
+                .iter_mut()
+                .for_each(|receiver| receiver.receive_commitment(sender_id, commitment).unwrap());
         });
 
         // Generate the shares
@@ -473,7 +515,10 @@ mod test {
             share_set.iter().for_each(|(&sender_id, share)| {
                 generators[(receiver_id - 1) as usize]
                     .receive_share(sender_id, share)
-                    .expect(&format!("{} rejected share from {}", receiver_id, sender_id));
+                    .expect(&format!(
+                        "{} rejected share from {}",
+                        receiver_id, sender_id
+                    ));
             });
         });
 
@@ -481,9 +526,7 @@ mod test {
     }
 
     fn complete_parties(generators: Vec<ThresholdGenerator>) -> Vec<ThresholdParty> {
-        generators.iter()
-            .map(|p| p.finish().unwrap())
-            .collect()
+        generators.iter().map(|p| p.finish().unwrap()).collect()
     }
 
     fn get_parties(ctx: &CryptoContext) -> Vec<ThresholdParty> {
@@ -509,9 +552,10 @@ mod test {
         let generators = run_generation(&ctx);
 
         // Store the intended public key
-        let pubkey: CurveElem = generators.iter().map(|party| {
-            ctx.g_to(&party.polynomial.x_i)
-        }).sum();
+        let pubkey: CurveElem = generators
+            .iter()
+            .map(|party| ctx.g_to(&party.polynomial.x_i))
+            .sum();
         let parties = complete_parties(generators);
 
         // Compute the final public key
@@ -536,13 +580,15 @@ mod test {
 
         let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
 
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
+        parties.iter_mut().for_each(|party| {
+            let share = party.decrypt_share(&ct);
+            decrypted.add_share(party.index, &party.pubkey_proof(), &share);
+        });
 
-        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(
+            decrypted.finish().unwrap().decoded().unwrap().as_base64(),
+            m.decoded().unwrap().as_base64()
+        );
     }
 
     #[test]
@@ -560,14 +606,16 @@ mod test {
         parties.truncate(k as usize);
 
         let mut decrypted = Decryption::new(k, &ctx, &ct);
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
+        parties.iter_mut().for_each(|party| {
+            let share = party.decrypt_share(&ct);
+            decrypted.add_share(party.index, &party.pubkey_proof(), &share);
+        });
 
         assert!(decrypted.verify());
-        assert_eq!(decrypted.finish().unwrap().decoded().unwrap().as_base64(), m.decoded().unwrap().as_base64());
+        assert_eq!(
+            decrypted.finish().unwrap().decoded().unwrap().as_base64(),
+            m.decoded().unwrap().as_base64()
+        );
     }
 
     #[test]
@@ -585,11 +633,10 @@ mod test {
         parties.truncate((k - 1) as usize);
 
         let mut decrypted = Decryption::new(k, &ctx, &ct);
-        parties.iter_mut()
-            .for_each(|party| {
-                let share = party.decrypt_share(&ct);
-                decrypted.add_share(party.index, &party.pubkey_proof(), &share);
-            });
+        parties.iter_mut().for_each(|party| {
+            let share = party.decrypt_share(&ct);
+            decrypted.add_share(party.index, &party.pubkey_proof(), &share);
+        });
 
         assert!(!decrypted.verify());
         assert!(decrypted.finish().is_err())

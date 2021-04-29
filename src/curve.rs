@@ -1,16 +1,16 @@
 use std::convert::TryFrom;
 use std::iter::Sum;
-use std::ops::{Add, Sub, AddAssign};
+use std::ops::{Add, AddAssign, Sub};
 
-use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
 
-use crate::{CryptoError, Scalar, Hasher};
 use crate::base64_serde;
 use crate::elgamal::CryptoContext;
-use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use crate::scalar::DalekScalar;
+use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
+use crate::{CryptoError, Hasher, Scalar};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(pub(crate) RistrettoPoint);
@@ -76,13 +76,17 @@ impl AsBase64 for CurveElem {
     type Error = CryptoError;
 
     fn as_base64(&self) -> String {
-            base64::encode(&self.as_bytes())
-        }
+        base64::encode(&self.as_bytes())
+    }
 
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
         let decoded = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
         if decoded.len() == 32 {
-            Ok(Self(CompressedRistretto::from_slice(&decoded).decompress().ok_or(CryptoError::Decoding)?))
+            Ok(Self(
+                CompressedRistretto::from_slice(&decoded)
+                    .decompress()
+                    .ok_or(CryptoError::Decoding)?,
+            ))
         } else {
             Err(CryptoError::Decoding)
         }
@@ -130,7 +134,7 @@ impl AddAssign<CurveElem> for CurveElem {
 }
 
 impl Sum for CurveElem {
-    fn sum<I: Iterator<Item=Self>>(iter: I) -> Self {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::identity(), |acc, x| acc + x)
     }
 }
@@ -205,19 +209,28 @@ impl Polynomial {
             coefficients.push(ctx.random_scalar().0);
         }
 
-        Polynomial { k, n, x_i, ctx, coefficients }
+        Polynomial {
+            k,
+            n,
+            x_i,
+            ctx,
+            coefficients,
+        }
     }
 
     pub fn get_public_params(&self) -> Vec<CurveElem> {
-        self.coefficients.iter()
+        self.coefficients
+            .iter()
             .map(|coeff| self.ctx.g_to(&Scalar(coeff.clone())))
             .collect()
     }
 
     pub fn evaluate(&self, i: u32) -> Scalar {
-        Scalar((0..self.k).map(|l| {
-            self.coefficients[l] * DalekScalar::from(i.pow(l as u32))
-        }).sum())
+        Scalar(
+            (0..self.k)
+                .map(|l| self.coefficients[l] * DalekScalar::from(i.pow(l as u32)))
+                .sum(),
+        )
     }
 }
 

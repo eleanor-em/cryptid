@@ -1,18 +1,18 @@
 use std::convert::TryFrom;
-use std::fmt::{Formatter, Display};
+use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc, Mutex};
 
 use ring::rand::SecureRandom;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{Scalar, AsBase64};
-use crate::{curve, CryptoError};
 use crate::threshold::EncodingError;
-use num_bigint::BigUint;
-use rand_chacha::ChaCha20Rng;
-use rand::{SeedableRng, RngCore};
+use crate::{curve, CryptoError};
+use crate::{AsBase64, Scalar};
 use curve25519_dalek::ristretto::RistrettoPoint;
+use num_bigint::BigUint;
+use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 use std::ops::DerefMut;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -47,7 +47,7 @@ impl AsBase64 for PublicKey {
 
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
         Ok(Self {
-            y: CurveElem::try_from_base64(encoded)?
+            y: CurveElem::try_from_base64(encoded)?,
         })
     }
 }
@@ -104,7 +104,7 @@ impl Ciphertext {
     pub fn scaled(&self, scalar: &Scalar) -> Self {
         Self {
             c1: self.c1.scaled(scalar),
-            c2: self.c2.scaled(scalar)
+            c2: self.c2.scaled(scalar),
         }
     }
 
@@ -162,16 +162,14 @@ impl CryptoContext {
         let rng = {
             let rng = ring::rand::SystemRandom::new();
             let mut buf = [0; 32];
-            rng.fill(&mut buf).map_err(|e|  CryptoError::Unspecified(e))?;
+            rng.fill(&mut buf)
+                .map_err(|e| CryptoError::Unspecified(e))?;
             Arc::new(Mutex::new(ChaCha20Rng::from_seed(buf)))
         };
 
         let g = CurveElem::generator();
 
-        Ok(Self {
-            rng,
-            g
-        })
+        Ok(Self { rng, g })
     }
 
     pub fn order() -> BigUint {
@@ -210,7 +208,7 @@ impl CryptoContext {
 
 #[cfg(test)]
 mod test {
-    use crate::elgamal::{CryptoContext, PublicKey, Ciphertext};
+    use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
     use crate::util::AsBase64;
     use std::convert::TryFrom;
 

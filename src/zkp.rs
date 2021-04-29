@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{Hasher, Scalar, AsBase64, CryptoError};
 use crate::curve::CurveElem;
-use crate::elgamal::{CryptoContext, Ciphertext};
-use std::fmt::{Display, Formatter};
+use crate::elgamal::{Ciphertext, CryptoContext};
+use crate::{AsBase64, CryptoError, Hasher, Scalar};
 use std::convert::TryFrom;
+use std::fmt::{Display, Formatter};
 
 const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";
 
@@ -18,8 +18,14 @@ pub struct PrfKnowPlaintext {
 
 impl Display for PrfKnowPlaintext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}-{}-{}-{}", self.g.as_base64(), self.ct.to_string(),
-               self.blinded_g.as_base64(), self.r.as_base64())
+        write!(
+            f,
+            "{}-{}-{}-{}",
+            self.g.as_base64(),
+            self.ct.to_string(),
+            self.blinded_g.as_base64(),
+            self.r.as_base64()
+        )
     }
 }
 
@@ -35,12 +41,16 @@ impl TryFrom<&str> for PrfKnowPlaintext {
         let r = parts.next().ok_or(CryptoError::Decoding)?;
 
         let g = CurveElem::try_from_base64(g)?;
-        let ct = Ciphertext::try_from(ct)
-            .map_err(|_| CryptoError::Decoding)?;
+        let ct = Ciphertext::try_from(ct).map_err(|_| CryptoError::Decoding)?;
         let blinded_g = CurveElem::try_from_base64(blinded_g)?;
         let r = Scalar::try_from_base64(r)?;
 
-        Ok(Self { g, ct, blinded_g, r })
+        Ok(Self {
+            g,
+            ct,
+            blinded_g,
+            r,
+        })
     }
 }
 
@@ -64,7 +74,12 @@ impl PrfKnowPlaintext {
         let c = Self::challenge(&g, &ct, &blinded_g);
         let r = Scalar(z.0 + c.0 * r.0);
 
-        Self { g, ct, blinded_g, r }
+        Self {
+            g,
+            ct,
+            blinded_g,
+            r,
+        }
     }
 
     pub fn verify(&self) -> bool {
@@ -86,21 +101,31 @@ pub struct PrfEqDlogs {
 
 impl Display for PrfEqDlogs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}:{}:{}:{}:{}", self.result1.as_base64(), self.base1.as_base64(),
-               self.result2.as_base64(), self.base2.as_base64(), self.blinded_base1.as_base64(),
-               self.blinded_base2.as_base64(), self.r.as_base64())
+        write!(
+            f,
+            "{}:{}:{}:{}:{}:{}:{}",
+            self.result1.as_base64(),
+            self.base1.as_base64(),
+            self.result2.as_base64(),
+            self.base2.as_base64(),
+            self.blinded_base1.as_base64(),
+            self.blinded_base2.as_base64(),
+            self.r.as_base64()
+        )
     }
 }
 
 const EQ_DLOGS_TAG: &'static str = "EQ_DLOGS";
 
 impl PrfEqDlogs {
-    fn challenge(f: &CurveElem,
-                 h: &CurveElem,
-                 v: &CurveElem,
-                 w: &CurveElem,
-                 a: &CurveElem,
-                 b: &CurveElem) -> Scalar {
+    fn challenge(
+        f: &CurveElem,
+        h: &CurveElem,
+        v: &CurveElem,
+        w: &CurveElem,
+        a: &CurveElem,
+        b: &CurveElem,
+    ) -> Scalar {
         Hasher::sha_256()
             .and_update(&f.as_bytes())
             .and_update(&h.as_bytes())
@@ -113,16 +138,25 @@ impl PrfEqDlogs {
     }
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x
-    pub fn new(ctx: &CryptoContext,
-               base1: &CurveElem,
-               base2: &CurveElem,
-               result1: &CurveElem,
-               result2: &CurveElem,
-               power: &Scalar) -> Self {
+    pub fn new(
+        ctx: &CryptoContext,
+        base1: &CurveElem,
+        base2: &CurveElem,
+        result1: &CurveElem,
+        result2: &CurveElem,
+        power: &Scalar,
+    ) -> Self {
         let z = ctx.random_scalar();
         let blinded_base1 = base1.scaled(&z);
         let blinded_base2 = base2.scaled(&z);
-        let c = Self::challenge(&base1, &base2, &result1, &result2, &blinded_base1, &blinded_base2);
+        let c = Self::challenge(
+            &base1,
+            &base2,
+            &result1,
+            &result2,
+            &blinded_base1,
+            &blinded_base2,
+        );
         let r = Scalar(z.0 + c.0 * power.0);
         Self {
             result1: result1.clone(),
@@ -131,12 +165,19 @@ impl PrfEqDlogs {
             base2: base2.clone(),
             blinded_base1,
             blinded_base2,
-            r
+            r,
         }
     }
 
     pub fn verify(&self) -> bool {
-        let c = Self::challenge(&self.base1, &self.base2, &self.result1, &self.result2, &self.blinded_base1, &self.blinded_base2);
+        let c = Self::challenge(
+            &self.base1,
+            &self.base2,
+            &self.result1,
+            &self.result2,
+            &self.blinded_base1,
+            &self.blinded_base2,
+        );
         self.base1.scaled(&self.r) == &self.blinded_base1 + &self.result1.scaled(&c)
             && self.base2.scaled(&self.r) == &self.blinded_base2 + &self.result2.scaled(&c)
     }
@@ -156,7 +197,12 @@ pub struct PrfDecryption {
 }
 
 impl PrfDecryption {
-    fn challenge(g: &CurveElem, ct: &Ciphertext, dec_factor: &CurveElem, public_key: &CurveElem) -> Scalar {
+    fn challenge(
+        g: &CurveElem,
+        ct: &Ciphertext,
+        dec_factor: &CurveElem,
+        public_key: &CurveElem,
+    ) -> Scalar {
         Hasher::sha_256()
             .and_update(&g.as_bytes())
             .and_update(&ct.c1.as_bytes())
@@ -167,7 +213,13 @@ impl PrfDecryption {
             .finish_scalar()
     }
 
-    pub fn new(ctx: &CryptoContext, ct: Ciphertext, dec_factor: CurveElem, secret: Scalar, public_key: CurveElem) -> Self {
+    pub fn new(
+        ctx: &CryptoContext,
+        ct: Ciphertext,
+        dec_factor: CurveElem,
+        secret: Scalar,
+        public_key: CurveElem,
+    ) -> Self {
         let g = ctx.generator();
 
         let z = ctx.random_scalar();
@@ -178,7 +230,15 @@ impl PrfDecryption {
 
         let r = Scalar(z.0 + c.0 * secret.0);
 
-        Self { g, ct, public_key, dec_factor, blinded_g, blinded_c1, r }
+        Self {
+            g,
+            ct,
+            public_key,
+            dec_factor,
+            blinded_g,
+            blinded_c1,
+            r,
+        }
     }
 
     pub fn verify(&self) -> bool {
@@ -191,9 +251,9 @@ impl PrfDecryption {
 #[cfg(test)]
 mod tests {
     use crate::elgamal::{CryptoContext, PublicKey};
-    use crate::zkp::{PrfEqDlogs, PrfDecryption, PrfKnowPlaintext};
-    use crate::Scalar;
     use crate::scalar::DalekScalar;
+    use crate::zkp::{PrfDecryption, PrfEqDlogs, PrfKnowPlaintext};
+    use crate::Scalar;
     use std::convert::TryFrom;
 
     #[test]
