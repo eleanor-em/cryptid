@@ -96,7 +96,7 @@ impl Shuffle {
             .map(|(cts, rs)| {
                 cts.iter()
                     .zip(rs)
-                    .map(|(ct, r)| pubkey.rerand(&ctx, &ct, &r))
+                    .map(|(ct, r)| pubkey.rerand(&ct, &r))
                     .collect()
             })
             .collect();
@@ -244,7 +244,7 @@ impl Shuffle {
                     |(a, b), (c_a, c_b)| (a + c_a, b + c_b),
                 );
 
-            let t_4_1 = ctx.g_to(&-omegas[j + 3]) + sum_a;
+            let t_4_1 = GENERATOR.scaled(&-omegas[j + 3]) + sum_a;
             let t_4_2 = pubkey.y.scaled(&-omegas[j + 3]) + sum_b;
 
             t_4s.push((t_4_1, t_4_2));
@@ -451,7 +451,8 @@ impl ShuffleProof {
                     |(a, b), (c_a, c_b)| (a + c_a, b + c_b),
                 );
 
-            let t_4_1_prime = scaled_cts[j].0.scaled(&-c) + ctx.g_to(&-self.s_4s[j]) + sum_a;
+            let t_4_1_prime =
+                scaled_cts[j].0.scaled(&-c) + GENERATOR.scaled(&-self.s_4s[j]) + sum_a;
 
             let t_4_2_prime = scaled_cts[j].1.scaled(&-c) + pubkey.y.scaled(&-self.s_4s[j]) + sum_b;
 
@@ -535,7 +536,7 @@ mod tests {
             .iter()
             .map(|r| {
                 let message = ctx.random_elem();
-                (0..m).map(|_| pubkey.encrypt(&ctx, &message, &r)).collect()
+                (0..m).map(|_| pubkey.encrypt(&message, &r)).collect()
             })
             .collect();
 
@@ -558,11 +559,7 @@ mod tests {
             .map(|r| {
                 (0..m)
                     .map(|_| {
-                        pubkey.encrypt(
-                            &ctx,
-                            &CurveElem::try_encode(Scalar::from(16u32)).unwrap(),
-                            &r,
-                        )
+                        pubkey.encrypt(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
                     })
                     .collect()
             })
@@ -604,11 +601,7 @@ mod tests {
             .map(|r| {
                 (0..m)
                     .map(|_| {
-                        pubkey.encrypt(
-                            &ctx,
-                            &CurveElem::try_encode(Scalar::from(16u32)).unwrap(),
-                            &r,
-                        )
+                        pubkey.encrypt(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
                     })
                     .collect()
             })

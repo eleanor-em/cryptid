@@ -26,14 +26,14 @@ impl PublicKey {
         Self { y: value }
     }
 
-    pub fn encrypt(&self, ctx: &CryptoContext, m: &CurveElem, r: &Scalar) -> Ciphertext {
-        let c1 = ctx.g_to(r);
+    pub fn encrypt(&self, m: &CurveElem, r: &Scalar) -> Ciphertext {
+        let c1 = GENERATOR.scaled(r);
         let c2 = m + &self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
 
-    pub fn rerand(self, ctx: &CryptoContext, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
-        let c1 = &ct.c1 + &ctx.g_to(r);
+    pub fn rerand(self, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
+        let c1 = &ct.c1 + &GENERATOR.scaled(r);
         let c2 = &ct.c2 + &self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
@@ -75,7 +75,7 @@ pub struct KeyPair {
 impl KeyPair {
     fn new(ctx: &CryptoContext) -> Self {
         let x_i = ctx.random_scalar();
-        let y_i = ctx.g_to(&x_i);
+        let y_i = GENERATOR.scaled(&x_i);
         let pk = PublicKey::new(y_i);
         Self { pk, x_i, y_i }
     }
@@ -194,14 +194,11 @@ impl CryptoContext {
         let mut rng = self.rng.lock().unwrap();
         curve::CurveElem(RistrettoPoint::random(rng.deref_mut()))
     }
-
-    pub fn g_to(&self, power: &Scalar) -> CurveElem {
-        GENERATOR.scaled(power)
-    }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::curve::GENERATOR;
     use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
     use crate::util::AsBase64;
     use std::convert::TryFrom;
@@ -210,7 +207,7 @@ mod test {
     fn test_pubkey_serde() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let y = PublicKey::new(ctx.g_to(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
         let encoded = y.as_base64();
         let decoded = PublicKey::try_from_base64(encoded.as_str()).unwrap();
@@ -221,14 +218,14 @@ mod test {
     fn test_ciphertext_serde() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let y = PublicKey::new(ctx.g_to(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
         let r = ctx.random_scalar();
-        let m = ctx.g_to(&r);
+        let m = GENERATOR.scaled(&r);
 
         let r = ctx.random_scalar();
 
-        let ct = y.encrypt(&ctx, &m.into(), &r);
+        let ct = y.encrypt(&m.into(), &r);
 
         let ct_str = ct.to_string();
 
@@ -239,20 +236,20 @@ mod test {
     fn test_homomorphism() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let y = PublicKey::new(ctx.g_to(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
         // Construct two messages
         let r1 = ctx.random_scalar();
         let r2 = ctx.random_scalar();
-        let m1 = ctx.g_to(&r1);
-        let m2 = ctx.g_to(&r2);
+        let m1 = GENERATOR.scaled(&r1);
+        let m2 = GENERATOR.scaled(&r2);
 
         let r1 = ctx.random_scalar();
         let r2 = ctx.random_scalar();
 
         // Encrypt the messages
-        let ct1 = y.encrypt(&ctx, &m1.into(), &r1);
-        let ct2 = y.encrypt(&ctx, &m2.into(), &r2);
+        let ct1 = y.encrypt(&m1.into(), &r1);
+        let ct2 = y.encrypt(&m2.into(), &r2);
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);

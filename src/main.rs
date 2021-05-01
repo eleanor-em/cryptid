@@ -18,13 +18,7 @@ fn main() {
         .par_iter()
         .map(|r| {
             (0..m)
-                .map(|_| {
-                    pubkey.encrypt(
-                        &ctx,
-                        &CurveElem::try_encode(Scalar::from(16u32)).unwrap(),
-                        &r,
-                    )
-                })
+                .map(|_| pubkey.encrypt(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r))
                 .collect()
         })
         .collect();

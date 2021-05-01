@@ -251,6 +251,7 @@ impl PrfDecryption {
 
 #[cfg(test)]
 mod tests {
+    use crate::curve::GENERATOR;
     use crate::elgamal::{CryptoContext, PublicKey};
     use crate::scalar::DalekScalar;
     use crate::zkp::{PrfDecryption, PrfEqDlogs, PrfKnowPlaintext};
@@ -264,8 +265,8 @@ mod tests {
         let b = ctx.random_scalar();
         let r = Scalar(a.0 + b.0);
 
-        let x = ctx.g_to(&r);
-        let y = ctx.g_to(&a) + ctx.g_to(&b);
+        let x = GENERATOR.scaled(&r);
+        let y = GENERATOR.scaled(&a) + GENERATOR.scaled(&b);
         assert_eq!(x, y);
     }
 
@@ -273,11 +274,11 @@ mod tests {
     fn test_prf_know_plaintext_serde() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let pk = PublicKey::new(ctx.g_to(&x));
+        let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
         let r = ctx.random_scalar();
-        let enc = pk.encrypt(&ctx, &m, &r);
+        let enc = pk.encrypt(&m, &r);
 
         let proof = PrfKnowPlaintext::new(&ctx, enc, r);
         let ser = proof.to_string();
@@ -289,11 +290,11 @@ mod tests {
     fn test_prf_know_plaintext_complete() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let pk = PublicKey::new(ctx.g_to(&x));
+        let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
         let r = ctx.random_scalar();
-        let enc = pk.encrypt(&ctx, &m, &r);
+        let enc = pk.encrypt(&m, &r);
 
         let proof = PrfKnowPlaintext::new(&ctx, enc, r);
         assert!(proof.verify());
@@ -303,11 +304,11 @@ mod tests {
     fn test_prf_know_plaintext_sound() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let pk = PublicKey::new(ctx.g_to(&x));
+        let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
         let r = ctx.random_scalar();
-        let enc = pk.encrypt(&ctx, &m, &r);
+        let enc = pk.encrypt(&m, &r);
 
         let mut proof = PrfKnowPlaintext::new(&ctx, enc, r);
         proof.r.0 += &DalekScalar::one();
@@ -318,9 +319,9 @@ mod tests {
     fn test_prf_eq_dlogs_complete() {
         let ctx = CryptoContext::new().unwrap();
         let x1 = ctx.random_scalar();
-        let f = ctx.g_to(&x1);
+        let f = GENERATOR.scaled(&x1);
         let x2 = ctx.random_scalar();
-        let h = ctx.g_to(&x2);
+        let h = GENERATOR.scaled(&x2);
 
         let x = ctx.random_scalar();
         let v = f.scaled(&x);
@@ -334,9 +335,9 @@ mod tests {
     fn test_prf_eq_dlogs_sound() {
         let ctx = CryptoContext::new().unwrap();
         let x1 = ctx.random_scalar();
-        let f = ctx.g_to(&x1);
+        let f = GENERATOR.scaled(&x1);
         let x2 = ctx.random_scalar();
-        let h = ctx.g_to(&x2);
+        let h = GENERATOR.scaled(&x2);
 
         let x = ctx.random_scalar();
         let v = f.scaled(&x);
@@ -352,11 +353,11 @@ mod tests {
     fn test_prf_dec_complete() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let pk = PublicKey::new(ctx.g_to(&x));
+        let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
         let r = ctx.random_scalar();
-        let enc = pk.encrypt(&ctx, &m, &r);
+        let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
 
         let proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);
@@ -367,11 +368,11 @@ mod tests {
     fn test_prf_dec_sound() {
         let ctx = CryptoContext::new().unwrap();
         let x = ctx.random_scalar();
-        let pk = PublicKey::new(ctx.g_to(&x));
+        let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
         let r = ctx.random_scalar();
-        let enc = pk.encrypt(&ctx, &m, &r);
+        let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
 
         let mut proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);

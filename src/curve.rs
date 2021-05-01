@@ -223,7 +223,7 @@ impl Polynomial {
     pub fn get_public_params(&self) -> Vec<CurveElem> {
         self.coefficients
             .iter()
-            .map(|coeff| self.ctx.g_to(&Scalar(coeff.clone())))
+            .map(|coeff| GENERATOR.scaled(&Scalar(coeff.clone())))
             .collect()
     }
 
@@ -238,13 +238,14 @@ impl Polynomial {
 
 #[cfg(test)]
 mod tests {
+    use crate::curve::GENERATOR;
     use crate::elgamal::CryptoContext;
 
     #[test]
     fn test_curveelem_serde() {
         let ctx = CryptoContext::new().unwrap();
         let s = ctx.random_scalar();
-        let elem = ctx.g_to(&s);
+        let elem = GENERATOR.scaled(&s);
 
         let encoded = serde_json::to_string(&elem).unwrap();
         let decoded = serde_json::from_str(&encoded).unwrap();

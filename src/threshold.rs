@@ -182,7 +182,7 @@ impl ThresholdGenerator {
         }
 
         // Check what the commitment is meant to be
-        let lhs = self.ctx.g_to(share);
+        let lhs = GENERATOR.scaled(share);
         let commitment = self.commitments.get(&sender_id).unwrap();
 
         // Verify the commitment
@@ -236,7 +236,7 @@ impl Threshold for ThresholdGenerator {
     fn finish(&self) -> Result<ThresholdParty, CryptoError> {
         if self.is_complete() {
             let secret_share = Scalar(self.shares.values().sum());
-            let pubkey_share = self.ctx.g_to(&secret_share);
+            let pubkey_share = GENERATOR.scaled(&secret_share);
 
             let pubkey = PublicKey::new(self.pk_parts.clone().into_iter().sum());
 
@@ -472,6 +472,7 @@ impl Threshold for Decryption {
 
 #[cfg(test)]
 mod test {
+    use crate::curve::GENERATOR;
     use crate::elgamal::{CryptoContext, CurveElem};
     use crate::threshold::{Decryption, Threshold, ThresholdGenerator, ThresholdParty};
     use crate::util::AsBase64;
@@ -555,7 +556,7 @@ mod test {
         // Store the intended public key
         let pubkey: CurveElem = generators
             .iter()
-            .map(|party| ctx.g_to(&party.polynomial.x_i))
+            .map(|party| GENERATOR.scaled(&party.polynomial.x_i))
             .sum();
         let parties = complete_parties(generators);
 
@@ -576,8 +577,8 @@ mod test {
 
         let r = ctx.random_scalar();
         let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
+        let m = GENERATOR.scaled(&m_r);
+        let ct = pk.encrypt(&m, &r);
 
         let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
 
@@ -600,8 +601,8 @@ mod test {
 
         let r = ctx.random_scalar();
         let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
+        let m = GENERATOR.scaled(&m_r);
+        let ct = pk.encrypt(&m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate(k as usize);
@@ -627,8 +628,8 @@ mod test {
 
         let r = ctx.random_scalar();
         let m_r = ctx.random_scalar();
-        let m = ctx.g_to(&m_r);
-        let ct = pk.encrypt(&ctx, &m, &r);
+        let m = GENERATOR.scaled(&m_r);
+        let ct = pk.encrypt(&m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate((k - 1) as usize);

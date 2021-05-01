@@ -263,11 +263,11 @@ mod tests {
 
         let x = ctx.random_elem();
         let r = ctx.random_scalar();
-        let ct = pk.encrypt(&ctx, &x, &r);
+        let ct = pk.encrypt(&x, &r);
 
         let x_prime = ctx.random_elem();
         let r_prime = ctx.random_scalar();
-        let ct_prime = pk.encrypt(&ctx, &x_prime, &r_prime);
+        let ct_prime = pk.encrypt(&x_prime, &r_prime);
 
         let r1 = ctx.random_scalar();
         let r2 = ctx.random_scalar();
@@ -298,7 +298,7 @@ mod tests {
 
         let x = ctx.random_elem();
         let r = ctx.random_scalar();
-        let ct = pk.encrypt(&ctx, &x, &r);
+        let ct = pk.encrypt(&x, &r);
 
         let r1 = ctx.random_scalar();
         let r2 = ctx.random_scalar();
