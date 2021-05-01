@@ -13,7 +13,6 @@ use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use crate::{CryptoError, Hasher, Scalar};
 
 pub const GENERATOR: CurveElem = CurveElem(curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT);
-
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(pub(crate) RistrettoPoint);
 

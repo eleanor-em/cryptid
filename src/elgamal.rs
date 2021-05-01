@@ -11,7 +11,6 @@ use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
 use curve::GENERATOR;
 use curve25519_dalek::ristretto::RistrettoPoint;
-use num_bigint::BigUint;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::ops::DerefMut;
@@ -168,10 +167,6 @@ impl CryptoContext {
         };
 
         Ok(Self { rng })
-    }
-
-    pub fn order() -> BigUint {
-        BigUint::from_bytes_le(curve25519_dalek::constants::BASEPOINT_ORDER.as_bytes())
     }
 
     pub fn rng(&self) -> Arc<Mutex<ChaCha20Rng>> {
