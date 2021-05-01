@@ -1,7 +1,7 @@
 use crate::commit::PedersenCtx;
 use crate::curve::CurveElem;
 use crate::curve::GENERATOR;
-use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
+use crate::elgamal::{Ciphertext, PublicKey};
 use crate::{CryptoError, Hasher, Scalar};
 use rand::{CryptoRng, Rng};
 use rayon::prelude::*;
@@ -120,8 +120,6 @@ impl Shuffle {
         generators: &[CurveElem],
         pubkey: &PublicKey,
     ) -> Result<ShuffleProof, CryptoError> {
-        let ctx = CryptoContext::new().unwrap();
-
         // Convenience shortcuts for parameters
         let n = self.perm.map.len();
         if n == 0 {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::curve::CurveElem;
 use crate::curve::GENERATOR;
-use crate::elgamal::{Ciphertext, CryptoContext};
+use crate::elgamal::Ciphertext;
 use crate::{AsBase64, CryptoError, Hasher, Scalar};
 use rand::{CryptoRng, Rng};
 use std::convert::TryFrom;
@@ -262,7 +262,6 @@ mod tests {
     #[test]
     fn test_exp_sum() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let a = Scalar::random(&mut rng);
         let b = Scalar::random(&mut rng);
         let r = Scalar(a.0 + b.0);
@@ -323,7 +322,6 @@ mod tests {
     #[test]
     fn test_prf_eq_dlogs_complete() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x1 = Scalar::random(&mut rng);
         let f = GENERATOR.scaled(&x1);
         let x2 = Scalar::random(&mut rng);
@@ -340,7 +338,6 @@ mod tests {
     #[test]
     fn test_prf_eq_dlogs_sound() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x1 = Scalar::random(&mut rng);
         let f = GENERATOR.scaled(&x1);
         let x2 = Scalar::random(&mut rng);

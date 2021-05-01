@@ -191,7 +191,6 @@ impl Into<BigUint> for Scalar {
 
 #[cfg(test)]
 mod tests {
-    use crate::elgamal::CryptoContext;
     use crate::Scalar;
     use num_bigint::BigUint;
 
@@ -208,7 +207,6 @@ mod tests {
     #[test]
     fn test_scalar_serde() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let s = Scalar::random(&mut rng);
 
         let encoded = serde_json::to_string(&s).unwrap();

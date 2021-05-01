@@ -481,7 +481,7 @@ mod test {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
-    fn run_generation(ctx: &CryptoContext) -> Vec<ThresholdGenerator> {
+    fn run_generation() -> Vec<ThresholdGenerator> {
         let mut rng = rand::thread_rng();
         const K: usize = 3;
         const N: usize = 5;
@@ -534,8 +534,8 @@ mod test {
         generators.iter().map(|p| p.finish().unwrap()).collect()
     }
 
-    fn get_parties(ctx: &CryptoContext) -> Vec<ThresholdParty> {
-        complete_parties(run_generation(ctx))
+    fn get_parties() -> Vec<ThresholdParty> {
+        complete_parties(run_generation())
     }
 
     #[test]
@@ -544,7 +544,6 @@ mod test {
         const K: usize = 3;
         const N: usize = 5;
 
-        let ctx = CryptoContext::new().unwrap();
         let generator = ThresholdGenerator::new(&mut rng, 1, K, N);
         let commit = generator.get_commitment();
         let commit_decoded = commit.to_string().as_str().try_into().unwrap();
@@ -554,8 +553,7 @@ mod test {
 
     #[test]
     fn test_keygen() {
-        let ctx = CryptoContext::new().unwrap();
-        let generators = run_generation(&ctx);
+        let generators = run_generation();
 
         // Store the intended public key
         let pubkey: CurveElem = generators
@@ -577,7 +575,7 @@ mod test {
     fn test_decrypt() {
         let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
+        let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
         let r = Scalar::random(&mut rng);
@@ -602,7 +600,7 @@ mod test {
     fn test_decrypt_partial() {
         let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
+        let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
         let r = Scalar::random(&mut rng);
@@ -630,7 +628,7 @@ mod test {
     fn test_decrypt_not_enough() {
         let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let mut parties = get_parties(&ctx);
+        let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
         let r = Scalar::random(&mut rng);

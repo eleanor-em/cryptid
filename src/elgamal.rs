@@ -186,7 +186,7 @@ impl CryptoContext {
 #[cfg(test)]
 mod test {
     use crate::curve::GENERATOR;
-    use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
+    use crate::elgamal::{Ciphertext, PublicKey};
     use crate::util::AsBase64;
     use crate::Scalar;
     use std::convert::TryFrom;
@@ -205,7 +205,6 @@ mod test {
     #[test]
     fn test_ciphertext_serde() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
@@ -224,7 +223,6 @@ mod test {
     #[test]
     fn test_homomorphism() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let y = PublicKey::new(GENERATOR.scaled(&x).into());
 

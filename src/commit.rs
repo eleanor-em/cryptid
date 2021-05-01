@@ -210,7 +210,6 @@ mod tests {
     fn test_commit() {
         let mut rng = rand::thread_rng();
 
-        let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
@@ -228,7 +227,6 @@ mod tests {
     #[test]
     fn test_commit_serde() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
