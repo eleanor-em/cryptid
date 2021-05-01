@@ -1,5 +1,5 @@
 use cryptid::commit::PedersenCtx;
-use cryptid::elgamal::{CryptoContext, CurveElem, PublicKey};
+use cryptid::elgamal::{CurveElem, PublicKey};
 use cryptid::shuffle::Shuffle;
 use cryptid::Scalar;
 use rand::RngCore;
@@ -9,8 +9,7 @@ use std::time::Instant;
 fn main() {
     let mut rng = rand::thread_rng();
     let then = Instant::now();
-    let ctx = CryptoContext::new().unwrap();
-    let pubkey = PublicKey::new(ctx.random_elem());
+    let pubkey = PublicKey::new(CurveElem::random(&mut rng));
     let n = 100000;
     let m = 6;
 

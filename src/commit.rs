@@ -201,7 +201,8 @@ impl CtCommitment {
 #[cfg(test)]
 mod tests {
     use crate::commit::{Commitment, CtCommitment, PedersenCtx};
-    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::curve::CurveElem;
+    use crate::elgamal::PublicKey;
     use crate::Scalar;
     use rand::RngCore;
     use std::convert::TryFrom;
@@ -245,18 +246,17 @@ mod tests {
     #[test]
     fn test_ct_commit() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
-        let pk = PublicKey::new(ctx.random_elem());
+        let pk = PublicKey::new(CurveElem::random(&mut rng));
 
         let mut seed = [0; 64];
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
-        let x = ctx.random_elem();
+        let x = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let ct = pk.encrypt(&x, &r);
 
-        let x_prime = ctx.random_elem();
+        let x_prime = CurveElem::random(&mut rng);
         let r_prime = Scalar::random(&mut rng);
         let ct_prime = pk.encrypt(&x_prime, &r_prime);
 
@@ -277,14 +277,13 @@ mod tests {
     #[test]
     fn test_ct_commit_serde() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
-        let pk = PublicKey::new(ctx.random_elem());
+        let pk = PublicKey::new(CurveElem::random(&mut rng));
 
         let mut seed = [0; 64];
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
-        let x = ctx.random_elem();
+        let x = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let ct = pk.encrypt(&x, &r);
 

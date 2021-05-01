@@ -18,6 +18,10 @@ pub const GENERATOR: CurveElem = CurveElem(curve25519_dalek::constants::RISTRETT
 pub struct CurveElem(pub(crate) RistrettoPoint);
 
 impl CurveElem {
+    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+        Self(RistrettoPoint::random(rng))
+    }
+
     pub fn identity() -> Self {
         Self(RistrettoPoint::identity())
     }

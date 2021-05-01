@@ -513,7 +513,7 @@ impl CommitChain {
 mod tests {
     use crate::commit::PedersenCtx;
     use crate::curve::CurveElem;
-    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::elgamal::PublicKey;
     use crate::shuffle::Shuffle;
     use crate::Scalar;
     use rand::RngCore;
@@ -521,8 +521,7 @@ mod tests {
     #[test]
     fn test_shuffle_random() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
-        let pubkey = PublicKey::new(ctx.random_elem());
+        let pubkey = PublicKey::new(CurveElem::random(&mut rng));
         let n = 4;
         let m = 3;
 
@@ -530,7 +529,7 @@ mod tests {
         let cts: Vec<_> = factors
             .iter()
             .map(|r| {
-                let message = ctx.random_elem();
+                let message = CurveElem::random(&mut rng);
                 (0..m).map(|_| pubkey.encrypt(&message, &r)).collect()
             })
             .collect();
@@ -545,8 +544,7 @@ mod tests {
     fn test_shuffle_complete() {
         let mut rng = rand::thread_rng();
 
-        let ctx = CryptoContext::new().unwrap();
-        let pubkey = PublicKey::new(ctx.random_elem());
+        let pubkey = PublicKey::new(CurveElem::random(&mut rng));
         let n = 100;
         let m = 5;
 
@@ -583,8 +581,7 @@ mod tests {
     #[test]
     fn test_shuffle_sound() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
-        let pubkey = PublicKey::new(ctx.random_elem());
+        let pubkey = PublicKey::new(CurveElem::random(&mut rng));
         let n = 100;
         let m = 3;
 

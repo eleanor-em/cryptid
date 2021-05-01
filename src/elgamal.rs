@@ -10,10 +10,8 @@ use crate::threshold::EncodingError;
 use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
 use curve::GENERATOR;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use rand::{CryptoRng, Rng, RngCore, SeedableRng};
+use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-use std::ops::DerefMut;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PublicKey {
@@ -167,19 +165,6 @@ impl CryptoContext {
         };
 
         Ok(Self { rng })
-    }
-
-    pub fn random_scalar(&self) -> Scalar {
-        // Generate 512 bit numbers and reduce mod group order
-        let mut rng = self.rng.lock().unwrap();
-        let mut buf = [0; 64];
-        rng.fill_bytes(&mut buf);
-        buf.into()
-    }
-
-    pub fn random_elem(&self) -> CurveElem {
-        let mut rng = self.rng.lock().unwrap();
-        curve::CurveElem(RistrettoPoint::random(rng.deref_mut()))
     }
 }
 

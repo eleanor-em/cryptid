@@ -252,8 +252,9 @@ impl PrfDecryption {
 
 #[cfg(test)]
 mod tests {
+    use crate::curve::CurveElem;
     use crate::curve::GENERATOR;
-    use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::elgamal::PublicKey;
     use crate::scalar::DalekScalar;
     use crate::zkp::{PrfDecryption, PrfEqDlogs, PrfKnowPlaintext};
     use crate::Scalar;
@@ -274,11 +275,10 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_serde() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
-        let m = ctx.random_elem();
+        let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
@@ -291,11 +291,10 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_complete() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
-        let m = ctx.random_elem();
+        let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
@@ -306,11 +305,10 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_sound() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
-        let m = ctx.random_elem();
+        let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
@@ -356,11 +354,10 @@ mod tests {
     #[test]
     fn test_prf_dec_complete() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
-        let m = ctx.random_elem();
+        let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
@@ -372,11 +369,10 @@ mod tests {
     #[test]
     fn test_prf_dec_sound() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
-        let m = ctx.random_elem();
+        let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
