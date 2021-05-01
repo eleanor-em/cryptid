@@ -275,6 +275,7 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_serde() {
         let mut rng = rand::thread_rng();
+
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
@@ -291,6 +292,7 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_complete() {
         let mut rng = rand::thread_rng();
+
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
@@ -305,6 +307,7 @@ mod tests {
     #[test]
     fn test_prf_know_plaintext_sound() {
         let mut rng = rand::thread_rng();
+
         let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
