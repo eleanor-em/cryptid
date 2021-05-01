@@ -1,17 +1,14 @@
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
 
-use ring::rand::SecureRandom;
 use serde::{Deserialize, Serialize};
 
 use crate::threshold::EncodingError;
 use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
 use curve::GENERATOR;
-use rand::{CryptoRng, Rng, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use rand::{CryptoRng, Rng};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PublicKey {
@@ -138,35 +135,6 @@ impl TryFrom<&str> for Ciphertext {
 }
 
 pub type CurveElem = curve::CurveElem;
-
-#[derive(Debug)]
-pub struct CryptoContext {
-    // rng: Arc<Mutex<ring::rand::SystemRandom>>,
-    rng: Arc<Mutex<ChaCha20Rng>>,
-    //g: CurveElem,
-}
-
-impl Clone for CryptoContext {
-    fn clone(&self) -> Self {
-        let rng = self.rng.clone();
-        Self { rng }
-    }
-}
-
-impl CryptoContext {
-    pub fn new() -> Result<Self, CryptoError> {
-        // Generate a ChaCha20 RNG from ring
-        let rng = {
-            let rng = ring::rand::SystemRandom::new();
-            let mut buf = [0; 32];
-            rng.fill(&mut buf)
-                .map_err(|e| CryptoError::Unspecified(e))?;
-            Arc::new(Mutex::new(ChaCha20Rng::from_seed(buf)))
-        };
-
-        Ok(Self { rng })
-    }
-}
 
 #[cfg(test)]
 mod test {

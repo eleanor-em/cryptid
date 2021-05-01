@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::curve::GENERATOR;
 use crate::curve::{CurveElem, Polynomial};
-use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
+use crate::elgamal::{Ciphertext, PublicKey};
 use crate::scalar::DalekScalar;
 use crate::util::AsBase64;
 use crate::{zkp, CryptoError, Scalar};
@@ -82,7 +82,6 @@ impl TryFrom<&str> for KeygenCommitment {
 //
 // See https://link.springer.com/content/pdf/10.1007/3-540-46416-6_47.pdf for details.
 pub struct ThresholdGenerator {
-    ctx: CryptoContext,
     index: usize,
     min_trustees: usize,
     trustee_count: usize,
@@ -103,7 +102,6 @@ impl ThresholdGenerator {
         trustee_count: usize,
     ) -> Self {
         if index > 0 && index <= trustee_count {
-            let ctx = CryptoContext::new().unwrap();
             let f_i = Polynomial::random(rng, min_trustees, trustee_count);
             let index = index as usize;
             let min_trustees = min_trustees as usize;
@@ -114,7 +112,6 @@ impl ThresholdGenerator {
             let pk_parts = Vec::new();
 
             Self {
-                ctx,
                 index,
                 polynomial: f_i,
                 min_trustees,
@@ -242,7 +239,6 @@ impl Threshold for ThresholdGenerator {
             let pubkey = PublicKey::new(self.pk_parts.clone().into_iter().sum());
 
             Ok(ThresholdParty {
-                ctx: self.ctx.clone(),
                 index: self.index,
                 min_trustees: self.min_trustees,
                 trustee_count: self.trustee_count,
@@ -272,7 +268,6 @@ impl AsBase64 for PubkeyProof {
 }
 
 pub struct ThresholdParty {
-    ctx: CryptoContext,
     index: usize,
     min_trustees: usize,
     trustee_count: usize,
@@ -284,7 +279,6 @@ pub struct ThresholdParty {
 impl Clone for ThresholdParty {
     fn clone(&self) -> Self {
         Self {
-            ctx: self.ctx.clone(),
             index: self.index,
             min_trustees: self.min_trustees,
             trustee_count: self.trustee_count,
@@ -297,7 +291,6 @@ impl Clone for ThresholdParty {
 
 impl ThresholdParty {
     pub fn from_existing(
-        ctx: &CryptoContext,
         index: usize,
         min_trustees: usize,
         trustee_count: usize,
@@ -306,7 +299,6 @@ impl ThresholdParty {
         pubkey: PublicKey,
     ) -> Self {
         Self {
-            ctx: ctx.clone(),
             index,
             min_trustees,
             trustee_count,
@@ -392,17 +384,15 @@ pub struct DecryptShare {
 #[derive(Debug)]
 pub struct Decryption {
     min_trustees: usize,
-    ctx: CryptoContext,
     ct: Ciphertext,
     pubkey_proofs: HashMap<usize, PubkeyProof>,
     dec_shares: HashMap<usize, DecryptShare>,
 }
 
 impl Decryption {
-    pub fn new(min_trustees: usize, ctx: &CryptoContext, ct: &Ciphertext) -> Self {
+    pub fn new(min_trustees: usize, ct: &Ciphertext) -> Self {
         Self {
             min_trustees,
-            ctx: ctx.clone(),
             ct: ct.clone(),
             pubkey_proofs: HashMap::new(),
             dec_shares: HashMap::new(),
@@ -474,7 +464,7 @@ impl Threshold for Decryption {
 #[cfg(test)]
 mod test {
     use crate::curve::GENERATOR;
-    use crate::elgamal::{CryptoContext, CurveElem};
+    use crate::elgamal::CurveElem;
     use crate::threshold::{Decryption, Threshold, ThresholdGenerator, ThresholdParty};
     use crate::util::AsBase64;
     use crate::Scalar;
@@ -574,7 +564,6 @@ mod test {
     #[test]
     fn test_decrypt() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
@@ -583,7 +572,7 @@ mod test {
         let m = GENERATOR.scaled(&m_r);
         let ct = pk.encrypt(&m, &r);
 
-        let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
+        let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ct);
 
         parties.iter_mut().for_each(|party| {
             let share = party.decrypt_share(&ct, &mut rng);
@@ -599,7 +588,6 @@ mod test {
     #[test]
     fn test_decrypt_partial() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
@@ -611,7 +599,7 @@ mod test {
         let k = parties.first().unwrap().min_trustees;
         parties.truncate(k as usize);
 
-        let mut decrypted = Decryption::new(k, &ctx, &ct);
+        let mut decrypted = Decryption::new(k, &ct);
         parties.iter_mut().for_each(|party| {
             let share = party.decrypt_share(&ct, &mut rng);
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);
@@ -627,7 +615,6 @@ mod test {
     #[test]
     fn test_decrypt_not_enough() {
         let mut rng = rand::thread_rng();
-        let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties();
         let pk = parties.first().unwrap().pubkey();
 
@@ -639,7 +626,7 @@ mod test {
         let k = parties.first().unwrap().min_trustees;
         parties.truncate((k - 1) as usize);
 
-        let mut decrypted = Decryption::new(k, &ctx, &ct);
+        let mut decrypted = Decryption::new(k, &ct);
         parties.iter_mut().for_each(|party| {
             let share = party.decrypt_share(&ct, &mut rng);
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);

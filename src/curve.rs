@@ -8,7 +8,6 @@ use num_bigint::BigUint;
 use rand::{CryptoRng, Rng};
 
 use crate::base64_serde;
-use crate::elgamal::CryptoContext;
 use crate::scalar::DalekScalar;
 use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use crate::{CryptoError, Hasher, Scalar};
@@ -201,13 +200,12 @@ pub struct Polynomial {
     k: usize,
     n: usize,
     pub x_i: Scalar,
-    ctx: CryptoContext,
+
     coefficients: Vec<DalekScalar>,
 }
 
 impl Polynomial {
     pub fn random<R: Rng + CryptoRng>(rng: &mut R, k: usize, n: usize) -> Polynomial {
-        let ctx = CryptoContext::new().unwrap();
         let x_i = Scalar::random(rng);
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);
@@ -219,7 +217,6 @@ impl Polynomial {
             k,
             n,
             x_i,
-            ctx,
             coefficients,
         }
     }
