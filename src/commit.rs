@@ -207,13 +207,11 @@ mod tests {
 
     #[test]
     fn test_commit() {
+        let mut rng = rand::thread_rng();
+
         let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_scalar();
@@ -228,13 +226,10 @@ mod tests {
 
     #[test]
     fn test_commit_serde() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_scalar();
@@ -250,15 +245,12 @@ mod tests {
 
     #[test]
     fn test_ct_commit() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let pk = PublicKey::new(ctx.random_elem());
 
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_elem();
@@ -285,15 +277,12 @@ mod tests {
 
     #[test]
     fn test_ct_commit_serde() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let pk = PublicKey::new(ctx.random_elem());
 
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_elem();

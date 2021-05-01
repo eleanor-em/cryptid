@@ -169,10 +169,6 @@ impl CryptoContext {
         Ok(Self { rng })
     }
 
-    pub fn rng(&self) -> Arc<Mutex<ChaCha20Rng>> {
-        self.rng.clone()
-    }
-
     pub fn random_scalar(&self) -> Scalar {
         // Generate 512 bit numbers and reduce mod group order
         let mut rng = self.rng.lock().unwrap();

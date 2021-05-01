@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use std::time::Instant;
 
 fn main() {
+    let mut rng = rand::thread_rng();
     let then = Instant::now();
     let ctx = CryptoContext::new().unwrap();
     let pubkey = PublicKey::new(ctx.random_elem());
@@ -26,16 +27,12 @@ fn main() {
     println!("setup in {}ms", (now - then).as_millis());
 
     let then = Instant::now();
-    let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
+    let shuffle = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
     let now = Instant::now();
     println!("shuffled {}x{} in {}ms", n, m, (now - then).as_millis());
 
     let mut seed = [0; 64];
-    let rng = ctx.rng();
-    {
-        let mut rng = rng.lock().unwrap();
-        rng.fill_bytes(&mut seed);
-    }
+    rng.fill_bytes(&mut seed);
     let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
     let then = Instant::now();
     let proof = shuffle

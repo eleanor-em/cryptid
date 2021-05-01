@@ -2,6 +2,7 @@ use crate::curve::CurveElem;
 use crate::{base64_serde, AsBase64, CryptoError};
 use curve25519_dalek::scalar::Scalar as InternalDalekScalar;
 use num_bigint::BigUint;
+use rand::{CryptoRng, Rng};
 use std::convert::{TryFrom, TryInto};
 use std::iter::{Product, Sum};
 use std::ops::{Add, Mul, Neg};
@@ -12,6 +13,13 @@ pub(crate) type DalekScalar = InternalDalekScalar;
 pub struct Scalar(pub(crate) DalekScalar);
 
 impl Scalar {
+    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+        // Generate 512 bit numbers and  mod group order
+        let mut buf = [0; 64];
+        rng.fill_bytes(&mut buf);
+        buf.into()
+    }
+
     pub fn zero() -> Self {
         Self::from(0u8)
     }

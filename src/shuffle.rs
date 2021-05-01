@@ -3,8 +3,7 @@ use crate::curve::CurveElem;
 use crate::curve::GENERATOR;
 use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
 use crate::{CryptoError, Hasher, Scalar};
-use rand::Rng;
-use rand_chacha::ChaCha20Rng;
+use rand::{CryptoRng, Rng};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,7 +18,7 @@ pub struct Permutation {
 }
 
 impl Permutation {
-    pub fn new(rng: &mut ChaCha20Rng, n: usize) -> Result<Self, CryptoError> {
+    pub fn new<R: Rng + CryptoRng>(rng: &mut R, n: usize) -> Result<Self, CryptoError> {
         let mut map = Vec::with_capacity(n);
         let mut nums: Vec<_> = (0..n).collect();
 
@@ -70,8 +69,8 @@ pub struct Shuffle {
 const SHUFFLE_TAG: &'static str = "SHUFFLE_PROOF";
 
 impl Shuffle {
-    pub fn new(
-        ctx: CryptoContext,
+    pub fn new<R: Rng + CryptoRng>(
+        rng: &mut R,
         inputs: Vec<Vec<Ciphertext>>,
         pubkey: &PublicKey,
     ) -> Result<Self, CryptoError> {
@@ -81,14 +80,10 @@ impl Shuffle {
         }
         let m = inputs[0].len();
 
-        let perm = {
-            let rng = ctx.rng();
-            let mut rng = rng.lock().unwrap();
-            Permutation::new(&mut rng, n)?
-        };
+        let perm = { Permutation::new(rng, n)? };
 
         let factors: Vec<Vec<_>> = (0..n)
-            .map(|_| (0..m).map(|_| ctx.random_scalar()).collect())
+            .map(|_| (0..m).map(|_| Scalar::random(rng)).collect())
             .collect();
 
         let new_cts: Vec<Vec<_>> = (&inputs, &factors)
@@ -525,6 +520,7 @@ mod tests {
 
     #[test]
     fn test_shuffle_random() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 4;
@@ -539,14 +535,16 @@ mod tests {
             })
             .collect();
 
-        let shuffle1 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
-        let shuffle2 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
+        let shuffle1 = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
+        let shuffle2 = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
 
         assert_ne!(shuffle1, shuffle2);
     }
 
     #[test]
     fn test_shuffle_complete() {
+        let mut rng = rand::thread_rng();
+
         let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
@@ -564,14 +562,10 @@ mod tests {
             })
             .collect();
 
-        let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
+        let shuffle = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
 
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
         let proof = shuffle
             .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
@@ -588,6 +582,7 @@ mod tests {
 
     #[test]
     fn test_shuffle_sound() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let pubkey = PublicKey::new(ctx.random_elem());
         let n = 100;
@@ -605,15 +600,11 @@ mod tests {
             })
             .collect();
 
-        let shuffle = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
-        let shuffle2 = Shuffle::new(ctx.clone(), cts.clone(), &pubkey).unwrap();
+        let shuffle = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
+        let shuffle2 = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
 
         let mut seed = [0; 64];
-        let rng = ctx.rng();
-        {
-            let mut rng = rng.lock().unwrap();
-            rng.fill_bytes(&mut seed);
-        }
+        rng.fill_bytes(&mut seed);
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
         let proof = shuffle
             .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
