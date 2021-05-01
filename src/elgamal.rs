@@ -173,10 +173,6 @@ impl CryptoContext {
         self.rng.clone()
     }
 
-    pub fn gen_elgamal_key_pair(&self) -> KeyPair {
-        KeyPair::new(self)
-    }
-
     pub fn random_scalar(&self) -> Scalar {
         // Generate 512 bit numbers and reduce mod group order
         let mut rng = self.rng.lock().unwrap();
