@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::threshold::EncodingError;
 use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
+use curve::GENERATOR;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use num_bigint::BigUint;
 use rand::{RngCore, SeedableRng};
@@ -145,14 +146,13 @@ pub type CurveElem = curve::CurveElem;
 pub struct CryptoContext {
     // rng: Arc<Mutex<ring::rand::SystemRandom>>,
     rng: Arc<Mutex<ChaCha20Rng>>,
-    g: CurveElem,
+    //g: CurveElem,
 }
 
 impl Clone for CryptoContext {
     fn clone(&self) -> Self {
         let rng = self.rng.clone();
-        let g = self.g.clone();
-        Self { rng, g }
+        Self { rng }
     }
 }
 
@@ -167,9 +167,7 @@ impl CryptoContext {
             Arc::new(Mutex::new(ChaCha20Rng::from_seed(buf)))
         };
 
-        let g = CurveElem::generator();
-
-        Ok(Self { rng, g })
+        Ok(Self { rng })
     }
 
     pub fn order() -> BigUint {
@@ -178,10 +176,6 @@ impl CryptoContext {
 
     pub fn rng(&self) -> Arc<Mutex<ChaCha20Rng>> {
         self.rng.clone()
-    }
-
-    pub fn generator(&self) -> CurveElem {
-        self.g.clone()
     }
 
     pub fn gen_elgamal_key_pair(&self) -> KeyPair {
@@ -202,7 +196,7 @@ impl CryptoContext {
     }
 
     pub fn g_to(&self, power: &Scalar) -> CurveElem {
-        self.g.scaled(power)
+        GENERATOR.scaled(power)
     }
 }
 

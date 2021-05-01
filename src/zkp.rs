@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::curve::CurveElem;
+use crate::curve::GENERATOR;
 use crate::elgamal::{Ciphertext, CryptoContext};
 use crate::{AsBase64, CryptoError, Hasher, Scalar};
 use std::convert::TryFrom;
@@ -67,7 +68,7 @@ impl PrfKnowPlaintext {
 
     pub fn new(ctx: &CryptoContext, ct: Ciphertext, r: Scalar) -> Self {
         // Choose random commitment
-        let g = ctx.generator();
+        let g = GENERATOR.clone();
         let z = ctx.random_scalar();
         let blinded_g = g.scaled(&z);
         // Calculate the challenge
@@ -220,7 +221,7 @@ impl PrfDecryption {
         secret: Scalar,
         public_key: CurveElem,
     ) -> Self {
-        let g = ctx.generator();
+        let g = GENERATOR.clone();
 
         let z = ctx.random_scalar();
         let blinded_g = g.scaled(&z);

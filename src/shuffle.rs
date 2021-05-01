@@ -1,5 +1,6 @@
 use crate::commit::PedersenCtx;
 use crate::curve::CurveElem;
+use crate::curve::GENERATOR;
 use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
 use crate::{CryptoError, Hasher, Scalar};
 use rand::Rng;
@@ -167,7 +168,7 @@ impl Shuffle {
             .and_update(&pubkey.y.as_bytes())
             .and_update(&commit_ctx.g.as_bytes())
             .and_update(&commit_ctx.h.as_bytes())
-            .and_update(&ctx.generator().as_bytes())
+            .and_update(&GENERATOR.as_bytes())
             .and_update(SHUFFLE_TAG.as_bytes());
 
         let challenges: Vec<_> = (0..n)
@@ -375,7 +376,7 @@ impl ShuffleProof {
             .and_update(&pubkey.y.as_bytes())
             .and_update(&commit_ctx.g.as_bytes())
             .and_update(&commit_ctx.h.as_bytes())
-            .and_update(&ctx.generator().as_bytes())
+            .and_update(&GENERATOR.as_bytes())
             .and_update(SHUFFLE_TAG.as_bytes());
 
         let challenges: Vec<_> = (0..n)

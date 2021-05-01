@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
 
+use crate::curve::GENERATOR;
 use crate::curve::{CurveElem, Polynomial};
 use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
 use crate::scalar::DalekScalar;
@@ -431,7 +432,7 @@ impl Decryption {
                     && proof.public_key == pubkey_proof.0
                     && proof.ct == self.ct
                     && proof.dec_factor == share.share
-                    && proof.g == self.ctx.generator()
+                    && proof.g == GENERATOR
             });
 
         self.is_complete() && results.all(identity)
