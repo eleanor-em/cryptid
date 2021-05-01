@@ -51,7 +51,6 @@ fn main() {
 
     let then = Instant::now();
     assert!(proof.verify(
-        &ctx,
         &commit_ctx,
         &generators,
         shuffle.inputs(),

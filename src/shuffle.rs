@@ -328,7 +328,6 @@ pub struct ShuffleProof {
 impl ShuffleProof {
     pub fn verify(
         &self,
-        ctx: &CryptoContext,
         commit_ctx: &PedersenCtx,
         generators: &[CurveElem],
         inputs: &[Vec<Ciphertext>],
@@ -579,7 +578,6 @@ mod tests {
             .unwrap();
 
         assert!(proof.verify(
-            &ctx,
             &commit_ctx,
             &generators,
             &shuffle.inputs,
@@ -621,7 +619,6 @@ mod tests {
             .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
             .unwrap();
         assert!(!proof.verify(
-            &ctx,
             &commit_ctx,
             &generators,
             &shuffle2.inputs,
