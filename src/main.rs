@@ -14,7 +14,7 @@ fn main() {
     let n = 100000;
     let m = 6;
 
-    let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
+    let factors: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
     let cts: Vec<_> = factors
         .par_iter()
         .map(|r| {
@@ -36,7 +36,7 @@ fn main() {
     let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
     let then = Instant::now();
     let proof = shuffle
-        .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
+        .gen_proof(&mut rng, &commit_ctx, &generators, &pubkey)
         .unwrap();
     let now = Instant::now();
     println!(

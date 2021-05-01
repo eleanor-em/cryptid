@@ -32,9 +32,9 @@ impl Permutation {
     }
 
     // Produces a commitment to the permutation matrix
-    fn commit(
+    fn commit<R: Rng + CryptoRng>(
         &self,
-        ctx: &CryptoContext,
+        rng: &mut R,
         commit_ctx: &PedersenCtx,
         generators: &[CurveElem],
     ) -> Result<(Vec<CurveElem>, Vec<Scalar>), CryptoError> {
@@ -46,7 +46,7 @@ impl Permutation {
         let mut cs = HashMap::new();
         let mut rs = HashMap::new();
         for i in 0..n {
-            let r_i = ctx.random_scalar();
+            let r_i = Scalar::random(rng);
             cs.insert(self.map[i], commit_ctx.g.scaled(&r_i) + generators[i]);
             rs.insert(self.map[i], r_i);
         }
@@ -113,13 +113,15 @@ impl Shuffle {
         &self.outputs
     }
 
-    pub fn gen_proof(
+    pub fn gen_proof<R: Rng + CryptoRng>(
         &self,
-        ctx: &CryptoContext,
+        rng: &mut R,
         commit_ctx: &PedersenCtx,
         generators: &[CurveElem],
         pubkey: &PublicKey,
     ) -> Result<ShuffleProof, CryptoError> {
+        let ctx = CryptoContext::new().unwrap();
+
         // Convenience shortcuts for parameters
         let n = self.perm.map.len();
         if n == 0 {
@@ -132,7 +134,7 @@ impl Shuffle {
         }
 
         // Generate a vector of commitments to the permutation matrix
-        let (commitments, rs) = self.perm.commit(ctx, commit_ctx, generators)?;
+        let (commitments, rs) = self.perm.commit(rng, commit_ctx, generators)?;
 
         // Generate challenges via the Fiat-Shamir transform
         let mut initial_bytes = Vec::new();
@@ -180,7 +182,7 @@ impl Shuffle {
             .map(|i| challenges[self.perm.map[i]].clone())
             .collect();
 
-        let chain = CommitChain::new(ctx, commit_ctx, &perm_challenges)?;
+        let chain = CommitChain::new(rng, commit_ctx, &perm_challenges)?;
 
         // Generate randomness
         let r_bar = rs.clone().into_par_iter().sum();
@@ -201,18 +203,18 @@ impl Shuffle {
             .collect();
 
         let mut omegas = Vec::new();
-        omegas.push(ctx.random_scalar());
-        omegas.push(ctx.random_scalar());
-        omegas.push(ctx.random_scalar());
+        omegas.push(Scalar::random(rng));
+        omegas.push(Scalar::random(rng));
+        omegas.push(Scalar::random(rng));
         for _ in 0..m {
-            omegas.push(ctx.random_scalar());
+            omegas.push(Scalar::random(rng));
         }
 
         let mut omega_hats = Vec::new();
         let mut omega_primes = Vec::new();
         for _ in 0..n {
-            omega_hats.push(ctx.random_scalar());
-            omega_primes.push(ctx.random_scalar());
+            omega_hats.push(Scalar::random(rng));
+            omega_primes.push(Scalar::random(rng));
         }
 
         // Generate commitments
@@ -488,8 +490,8 @@ struct CommitChain {
 }
 
 impl CommitChain {
-    fn new(
-        ctx: &CryptoContext,
+    fn new<R: Rng + CryptoRng>(
+        rng: &mut R,
         commit_ctx: &PedersenCtx,
         challenges: &[Scalar],
     ) -> Result<Self, CryptoError> {
@@ -498,7 +500,7 @@ impl CommitChain {
         let mut last_commit = commit_ctx.h.clone();
 
         for i in 0..challenges.len() {
-            let r_i = ctx.random_scalar();
+            let r_i = Scalar::random(rng);
             let c_i = commit_ctx.g.scaled(&r_i) + last_commit.scaled(&challenges[i]);
             last_commit = c_i.clone();
             rs.push(r_i);
@@ -526,7 +528,7 @@ mod tests {
         let n = 4;
         let m = 3;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
+        let factors: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let cts: Vec<_> = factors
             .iter()
             .map(|r| {
@@ -550,7 +552,7 @@ mod tests {
         let n = 100;
         let m = 5;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
+        let factors: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let cts: Vec<_> = factors
             .iter()
             .map(|r| {
@@ -568,7 +570,7 @@ mod tests {
         rng.fill_bytes(&mut seed);
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
         let proof = shuffle
-            .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
+            .gen_proof(&mut rng, &commit_ctx, &generators, &pubkey)
             .unwrap();
 
         assert!(proof.verify(
@@ -588,7 +590,7 @@ mod tests {
         let n = 100;
         let m = 3;
 
-        let factors: Vec<_> = (0..n).map(|_| ctx.random_scalar()).collect();
+        let factors: Vec<_> = (0..n).map(|_| Scalar::random(&mut rng)).collect();
         let cts: Vec<_> = factors
             .iter()
             .map(|r| {
@@ -607,7 +609,7 @@ mod tests {
         rng.fill_bytes(&mut seed);
         let (commit_ctx, generators) = PedersenCtx::with_generators(&seed, n);
         let proof = shuffle
-            .gen_proof(&ctx, &commit_ctx, &generators, &pubkey)
+            .gen_proof(&mut rng, &commit_ctx, &generators, &pubkey)
             .unwrap();
         assert!(!proof.verify(
             &commit_ctx,

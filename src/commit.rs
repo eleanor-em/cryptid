@@ -202,6 +202,7 @@ impl CtCommitment {
 mod tests {
     use crate::commit::{Commitment, CtCommitment, PedersenCtx};
     use crate::elgamal::{CryptoContext, PublicKey};
+    use crate::Scalar;
     use rand::RngCore;
     use std::convert::TryFrom;
 
@@ -214,10 +215,10 @@ mod tests {
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
-        let x = ctx.random_scalar();
-        let r = ctx.random_scalar();
-        let x_prime = ctx.random_scalar();
-        let r_prime = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
+        let r = Scalar::random(&mut rng);
+        let x_prime = Scalar::random(&mut rng);
+        let r_prime = Scalar::random(&mut rng);
         let commitment = commit_ctx.commit(&x, &r);
 
         assert!(commitment.validate(&commit_ctx, &x, &r));
@@ -232,8 +233,8 @@ mod tests {
         rng.fill_bytes(&mut seed);
         let commit_ctx = PedersenCtx::new(&seed);
 
-        let x = ctx.random_scalar();
-        let r = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
+        let r = Scalar::random(&mut rng);
         let commitment = commit_ctx.commit(&x, &r);
 
         let ser = commitment.to_string();
@@ -254,17 +255,17 @@ mod tests {
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let ct = pk.encrypt(&x, &r);
 
         let x_prime = ctx.random_elem();
-        let r_prime = ctx.random_scalar();
+        let r_prime = Scalar::random(&mut rng);
         let ct_prime = pk.encrypt(&x_prime, &r_prime);
 
-        let r1 = ctx.random_scalar();
-        let r2 = ctx.random_scalar();
-        let r1_prime = ctx.random_scalar();
-        let r2_prime = ctx.random_scalar();
+        let r1 = Scalar::random(&mut rng);
+        let r2 = Scalar::random(&mut rng);
+        let r1_prime = Scalar::random(&mut rng);
+        let r2_prime = Scalar::random(&mut rng);
 
         let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
@@ -286,11 +287,11 @@ mod tests {
         let commit_ctx = PedersenCtx::new(&seed);
 
         let x = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let ct = pk.encrypt(&x, &r);
 
-        let r1 = ctx.random_scalar();
-        let r2 = ctx.random_scalar();
+        let r1 = Scalar::random(&mut rng);
+        let r2 = Scalar::random(&mut rng);
         let commitment = commit_ctx.commit_ct(&ct, &(r1, r2));
 
         let ser = commitment.to_string();

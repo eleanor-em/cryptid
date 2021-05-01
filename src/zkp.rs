@@ -4,6 +4,7 @@ use crate::curve::CurveElem;
 use crate::curve::GENERATOR;
 use crate::elgamal::{Ciphertext, CryptoContext};
 use crate::{AsBase64, CryptoError, Hasher, Scalar};
+use rand::{CryptoRng, Rng};
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 
@@ -66,10 +67,10 @@ impl PrfKnowPlaintext {
             .finish_scalar()
     }
 
-    pub fn new(ctx: &CryptoContext, ct: Ciphertext, r: Scalar) -> Self {
+    pub fn new<R: Rng + CryptoRng>(rng: &mut R, ct: Ciphertext, r: Scalar) -> Self {
         // Choose random commitment
         let g = GENERATOR.clone();
-        let z = ctx.random_scalar();
+        let z = Scalar::random(rng);
         let blinded_g = g.scaled(&z);
         // Calculate the challenge
         let c = Self::challenge(&g, &ct, &blinded_g);
@@ -139,15 +140,15 @@ impl PrfEqDlogs {
     }
 
     /// Prove that v = f^x and w = h^x, i.e. that dlog_f v = dlog_h w for a secret x
-    pub fn new(
-        ctx: &CryptoContext,
+    pub fn new<R: Rng + CryptoRng>(
+        rng: &mut R,
         base1: &CurveElem,
         base2: &CurveElem,
         result1: &CurveElem,
         result2: &CurveElem,
         power: &Scalar,
     ) -> Self {
-        let z = ctx.random_scalar();
+        let z = Scalar::random(rng);
         let blinded_base1 = base1.scaled(&z);
         let blinded_base2 = base2.scaled(&z);
         let c = Self::challenge(
@@ -214,8 +215,8 @@ impl PrfDecryption {
             .finish_scalar()
     }
 
-    pub fn new(
-        ctx: &CryptoContext,
+    pub fn new<R: Rng + CryptoRng>(
+        rng: &mut R,
         ct: Ciphertext,
         dec_factor: CurveElem,
         secret: Scalar,
@@ -223,7 +224,7 @@ impl PrfDecryption {
     ) -> Self {
         let g = GENERATOR.clone();
 
-        let z = ctx.random_scalar();
+        let z = Scalar::random(rng);
         let blinded_g = g.scaled(&z);
         let blinded_c1 = ct.c1.scaled(&z);
 
@@ -260,9 +261,10 @@ mod tests {
 
     #[test]
     fn test_exp_sum() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let a = ctx.random_scalar();
-        let b = ctx.random_scalar();
+        let a = Scalar::random(&mut rng);
+        let b = Scalar::random(&mut rng);
         let r = Scalar(a.0 + b.0);
 
         let x = GENERATOR.scaled(&r);
@@ -272,15 +274,16 @@ mod tests {
 
     #[test]
     fn test_prf_know_plaintext_serde() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
-        let proof = PrfKnowPlaintext::new(&ctx, enc, r);
+        let proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         let ser = proof.to_string();
         let de = PrfKnowPlaintext::try_from(ser.as_str()).unwrap();
         assert_eq!(proof, de);
@@ -288,62 +291,66 @@ mod tests {
 
     #[test]
     fn test_prf_know_plaintext_complete() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
-        let proof = PrfKnowPlaintext::new(&ctx, enc, r);
+        let proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         assert!(proof.verify());
     }
 
     #[test]
     fn test_prf_know_plaintext_sound() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
 
-        let mut proof = PrfKnowPlaintext::new(&ctx, enc, r);
+        let mut proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         proof.r.0 += &DalekScalar::one();
         assert!(!proof.verify());
     }
 
     #[test]
     fn test_prf_eq_dlogs_complete() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x1 = ctx.random_scalar();
+        let x1 = Scalar::random(&mut rng);
         let f = GENERATOR.scaled(&x1);
-        let x2 = ctx.random_scalar();
+        let x2 = Scalar::random(&mut rng);
         let h = GENERATOR.scaled(&x2);
 
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x);
+        let proof = PrfEqDlogs::new(&mut rng, &f, &h, &v, &w, &x);
         assert!(proof.verify());
     }
 
     #[test]
     fn test_prf_eq_dlogs_sound() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x1 = ctx.random_scalar();
+        let x1 = Scalar::random(&mut rng);
         let f = GENERATOR.scaled(&x1);
-        let x2 = ctx.random_scalar();
+        let x2 = Scalar::random(&mut rng);
         let h = GENERATOR.scaled(&x2);
 
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let v = f.scaled(&x);
         let w = h.scaled(&x);
 
-        let mut proof = PrfEqDlogs::new(&ctx, &f, &h, &v, &w, &x);
+        let mut proof = PrfEqDlogs::new(&mut rng, &f, &h, &v, &w, &x);
         proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify());
@@ -351,31 +358,33 @@ mod tests {
 
     #[test]
     fn test_prf_dec_complete() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
 
-        let proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);
+        let proof = PrfDecryption::new(&mut rng, enc, dec, x, pk.y);
         assert!(proof.verify());
     }
 
     #[test]
     fn test_prf_dec_sound() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let pk = PublicKey::new(GENERATOR.scaled(&x));
 
         let m = ctx.random_elem();
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let enc = pk.encrypt(&m, &r);
         let dec = enc.c1.scaled(&x);
 
-        let mut proof = PrfDecryption::new(&ctx, enc, dec, x, pk.y);
+        let mut proof = PrfDecryption::new(&mut rng, enc, dec, x, pk.y);
         proof.r.0 += &DalekScalar::one();
 
         assert!(!proof.verify());

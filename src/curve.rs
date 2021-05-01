@@ -5,6 +5,7 @@ use std::ops::{Add, AddAssign, Sub};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::traits::Identity;
 use num_bigint::BigUint;
+use rand::{CryptoRng, Rng};
 
 use crate::base64_serde;
 use crate::elgamal::CryptoContext;
@@ -201,13 +202,13 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
-    pub fn random(ctx: &CryptoContext, k: usize, n: usize) -> Polynomial {
-        let ctx = ctx.clone();
-        let x_i = ctx.random_scalar();
+    pub fn random<R: Rng + CryptoRng>(rng: &mut R, k: usize, n: usize) -> Polynomial {
+        let ctx = CryptoContext::new().unwrap();
+        let x_i = Scalar::random(rng);
         let mut coefficients = Vec::with_capacity(k);
         coefficients.push(x_i.0);
         for _ in 1..k {
-            coefficients.push(ctx.random_scalar().0);
+            coefficients.push(Scalar::random(rng).0);
         }
 
         Polynomial {
@@ -238,12 +239,12 @@ impl Polynomial {
 #[cfg(test)]
 mod tests {
     use crate::curve::GENERATOR;
-    use crate::elgamal::CryptoContext;
+    use crate::Scalar;
 
     #[test]
     fn test_curveelem_serde() {
-        let ctx = CryptoContext::new().unwrap();
-        let s = ctx.random_scalar();
+        let mut rng = rand::thread_rng();
+        let s = Scalar::random(&mut rng);
         let elem = GENERATOR.scaled(&s);
 
         let encoded = serde_json::to_string(&elem).unwrap();

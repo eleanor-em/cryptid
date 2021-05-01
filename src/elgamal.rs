@@ -11,7 +11,7 @@ use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
 use curve::GENERATOR;
 use curve25519_dalek::ristretto::RistrettoPoint;
-use rand::{RngCore, SeedableRng};
+use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::ops::DerefMut;
 
@@ -72,8 +72,8 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    fn new(ctx: &CryptoContext) -> Self {
-        let x_i = ctx.random_scalar();
+    pub fn new<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+        let x_i = Scalar::random(rng);
         let y_i = GENERATOR.scaled(&x_i);
         let pk = PublicKey::new(y_i);
         Self { pk, x_i, y_i }
@@ -188,12 +188,13 @@ mod test {
     use crate::curve::GENERATOR;
     use crate::elgamal::{Ciphertext, CryptoContext, PublicKey};
     use crate::util::AsBase64;
+    use crate::Scalar;
     use std::convert::TryFrom;
 
     #[test]
     fn test_pubkey_serde() {
-        let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let mut rng = rand::thread_rng();
+        let x = Scalar::random(&mut rng);
         let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
         let encoded = y.as_base64();
@@ -203,14 +204,15 @@ mod test {
 
     #[test]
     fn test_ciphertext_serde() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&r);
 
-        let r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
 
         let ct = y.encrypt(&m.into(), &r);
 
@@ -221,18 +223,19 @@ mod test {
 
     #[test]
     fn test_homomorphism() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
-        let x = ctx.random_scalar();
+        let x = Scalar::random(&mut rng);
         let y = PublicKey::new(GENERATOR.scaled(&x).into());
 
         // Construct two messages
-        let r1 = ctx.random_scalar();
-        let r2 = ctx.random_scalar();
+        let r1 = Scalar::random(&mut rng);
+        let r2 = Scalar::random(&mut rng);
         let m1 = GENERATOR.scaled(&r1);
         let m2 = GENERATOR.scaled(&r2);
 
-        let r1 = ctx.random_scalar();
-        let r2 = ctx.random_scalar();
+        let r1 = Scalar::random(&mut rng);
+        let r2 = Scalar::random(&mut rng);
 
         // Encrypt the messages
         let ct1 = y.encrypt(&m1.into(), &r1);

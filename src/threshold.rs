@@ -1,3 +1,4 @@
+use rand::{CryptoRng, Rng};
 use std::collections::HashMap;
 use std::convert::{identity, TryFrom};
 use std::error::Error;
@@ -95,15 +96,15 @@ impl ThresholdGenerator {
     // Create a new party with a given ID (unique and nonzero).
     // k = the minimum number for decryption
     // n = the total number of parties
-    pub fn new(
-        ctx: &CryptoContext,
+    pub fn new<R: Rng + CryptoRng>(
+        rng: &mut R,
         index: usize,
         min_trustees: usize,
         trustee_count: usize,
     ) -> Self {
         if index > 0 && index <= trustee_count {
-            let ctx = ctx.clone();
-            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count);
+            let ctx = CryptoContext::new().unwrap();
+            let f_i = Polynomial::random(rng, min_trustees, trustee_count);
             let index = index as usize;
             let min_trustees = min_trustees as usize;
             let trustee_count = trustee_count as usize;
@@ -329,11 +330,11 @@ impl ThresholdParty {
     }
 
     // Returns this party's share of a decryption.
-    pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
+    pub fn decrypt_share<R: Rng + CryptoRng>(&self, ct: &Ciphertext, rng: &mut R) -> DecryptShare {
         let dec_share = ct.c1.scaled(&self.secret_share);
 
         let proof = zkp::PrfDecryption::new(
-            &self.ctx,
+            rng,
             ct.clone(),
             dec_share.clone(),
             self.secret_share.clone(),
@@ -476,16 +477,18 @@ mod test {
     use crate::elgamal::{CryptoContext, CurveElem};
     use crate::threshold::{Decryption, Threshold, ThresholdGenerator, ThresholdParty};
     use crate::util::AsBase64;
+    use crate::Scalar;
     use std::collections::HashMap;
     use std::convert::TryInto;
 
     fn run_generation(ctx: &CryptoContext) -> Vec<ThresholdGenerator> {
+        let mut rng = rand::thread_rng();
         const K: usize = 3;
         const N: usize = 5;
 
         // Generate N parties
         let mut generators: Vec<_> = (1..N + 1)
-            .map(|i| ThresholdGenerator::new(ctx, i, K, N))
+            .map(|i| ThresholdGenerator::new(&mut rng, i, K, N))
             .collect();
 
         // Generate the commitments
@@ -537,11 +540,12 @@ mod test {
 
     #[test]
     fn test_commitment_serde() {
+        let mut rng = rand::thread_rng();
         const K: usize = 3;
         const N: usize = 5;
 
         let ctx = CryptoContext::new().unwrap();
-        let generator = ThresholdGenerator::new(&ctx, 1, K, N);
+        let generator = ThresholdGenerator::new(&mut rng, 1, K, N);
         let commit = generator.get_commitment();
         let commit_decoded = commit.to_string().as_str().try_into().unwrap();
 
@@ -571,19 +575,20 @@ mod test {
 
     #[test]
     fn test_decrypt() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
+        let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
         let ct = pk.encrypt(&m, &r);
 
         let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ctx, &ct);
 
         parties.iter_mut().for_each(|party| {
-            let share = party.decrypt_share(&ct);
+            let share = party.decrypt_share(&ct, &mut rng);
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);
         });
 
@@ -595,12 +600,13 @@ mod test {
 
     #[test]
     fn test_decrypt_partial() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
+        let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
         let ct = pk.encrypt(&m, &r);
 
@@ -609,7 +615,7 @@ mod test {
 
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut().for_each(|party| {
-            let share = party.decrypt_share(&ct);
+            let share = party.decrypt_share(&ct, &mut rng);
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);
         });
 
@@ -622,12 +628,13 @@ mod test {
 
     #[test]
     fn test_decrypt_not_enough() {
+        let mut rng = rand::thread_rng();
         let ctx = CryptoContext::new().unwrap();
         let mut parties = get_parties(&ctx);
         let pk = parties.first().unwrap().pubkey();
 
-        let r = ctx.random_scalar();
-        let m_r = ctx.random_scalar();
+        let r = Scalar::random(&mut rng);
+        let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
         let ct = pk.encrypt(&m, &r);
 
@@ -636,7 +643,7 @@ mod test {
 
         let mut decrypted = Decryption::new(k, &ctx, &ct);
         parties.iter_mut().for_each(|party| {
-            let share = party.decrypt_share(&ct);
+            let share = party.decrypt_share(&ct, &mut rng);
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);
         });
 
