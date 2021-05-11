@@ -224,7 +224,7 @@ impl Polynomial {
     pub fn get_public_params(&self) -> Vec<CurveElem> {
         self.coefficients
             .iter()
-            .map(|coeff| GENERATOR.scaled(&Scalar(coeff.clone())))
+            .map(|coeff| GENERATOR.scaled(&Scalar(*coeff)))
             .collect()
     }
 

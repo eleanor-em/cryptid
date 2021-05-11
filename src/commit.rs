@@ -73,8 +73,8 @@ impl PedersenCtx {
     /// Commit to the chosen pair of values.
     pub fn commit(&self, x: &Scalar, r: &Scalar) -> Commitment {
         Commitment {
-            g: self.g.clone(),
-            h: self.h.clone(),
+            g: self.g,
+            h: self.h,
             value: self.g.scaled(&x) + self.h.scaled(&r),
         }
     }
@@ -117,7 +117,7 @@ impl TryFrom<&str> for Commitment {
     type Error = EncodingError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let elems: Vec<_> = value.split(":").collect();
+        let elems: Vec<_> = value.split(':').collect();
         if elems.len() != 3 {
             return Err(EncodingError::Length);
         }
@@ -167,14 +167,14 @@ impl TryFrom<&str> for CtCommitment {
     type Error = EncodingError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let elems: Vec<_> = value.split("-").collect();
+        let elems: Vec<_> = value.split('-').collect();
         if elems.len() != 2 {
             return Err(EncodingError::Length);
         }
 
         let mut elems: Vec<_> = elems
             .into_iter()
-            .map(|s| Commitment::try_from(s))
+            .map(Commitment::try_from)
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Commitment)?;
 

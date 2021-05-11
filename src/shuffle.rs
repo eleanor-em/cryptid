@@ -45,6 +45,8 @@ impl Permutation {
 
         let mut cs = HashMap::new();
         let mut rs = HashMap::new();
+
+        #[allow(clippy::needless_range_loop)]
         for i in 0..n {
             let r_i = Scalar::random(rng);
             cs.insert(self.map[i], commit_ctx.g.scaled(&r_i) + generators[i]);
@@ -66,7 +68,7 @@ pub struct Shuffle {
     perm: Permutation,
 }
 
-const SHUFFLE_TAG: &'static str = "SHUFFLE_PROOF";
+const SHUFFLE_TAG: &str = "SHUFFLE_PROOF";
 
 impl Shuffle {
     pub fn new<R: Rng + CryptoRng>(
@@ -177,10 +179,10 @@ impl Shuffle {
             .collect();
 
         let perm_challenges: Vec<_> = (0..n)
-            .map(|i| challenges[self.perm.map[i]].clone())
+            .map(|i| challenges[self.perm.map[i]])
             .collect();
 
-        let chain = CommitChain::new(rng, commit_ctx, &perm_challenges)?;
+        let chain = CommitChain::new(rng, commit_ctx, &perm_challenges);
 
         // Generate randomness
         let r_bar = rs.clone().into_par_iter().sum();
@@ -200,7 +202,7 @@ impl Shuffle {
             })
             .collect();
 
-        let mut omegas = Vec::new();
+        let mut omegas = Vec::with_capacity(3 + m);
         omegas.push(Scalar::random(rng));
         omegas.push(Scalar::random(rng));
         omegas.push(Scalar::random(rng));
@@ -492,20 +494,19 @@ impl CommitChain {
         rng: &mut R,
         commit_ctx: &PedersenCtx,
         challenges: &[Scalar],
-    ) -> Result<Self, CryptoError> {
+    ) -> Self {
         let mut commits = Vec::new();
         let mut rs = Vec::new();
-        let mut last_commit = commit_ctx.h.clone();
+        let mut last_commit = commit_ctx.h;
 
-        for i in 0..challenges.len() {
+        for challenge in challenges {
             let r_i = Scalar::random(rng);
-            let c_i = commit_ctx.g.scaled(&r_i) + last_commit.scaled(&challenges[i]);
-            last_commit = c_i.clone();
+            let c_i = commit_ctx.g.scaled(&r_i) + last_commit.scaled(challenge);
+            last_commit = c_i;
             rs.push(r_i);
             commits.push(c_i);
         }
-
-        Ok(Self { commits, rs })
+        Self { commits, rs }
     }
 }
 

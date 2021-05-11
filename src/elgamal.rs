@@ -27,8 +27,8 @@ impl PublicKey {
     }
 
     pub fn rerand(self, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
-        let c1 = &ct.c1 + &GENERATOR.scaled(r);
-        let c2 = &ct.c2 + &self.y.scaled(r);
+        let c1 = ct.c1 + GENERATOR.scaled(r);
+        let c2 = ct.c2 + self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
 }
@@ -47,6 +47,7 @@ impl AsBase64 for PublicKey {
     }
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_base64().hash(state);
@@ -91,8 +92,8 @@ impl Ciphertext {
 
     pub fn add(&self, rhs: &Self) -> Self {
         Self {
-            c1: &self.c1 + &rhs.c1,
-            c2: &self.c2 + &rhs.c2,
+            c1: self.c1 + rhs.c1,
+            c2: self.c2 + rhs.c2,
         }
     }
 
@@ -104,7 +105,7 @@ impl Ciphertext {
     }
 
     pub fn decrypt(&self, secret_key: &Scalar) -> CurveElem {
-        &self.c2 - &(self.c1.scaled(secret_key))
+        self.c2 - (self.c1.scaled(secret_key))
     }
 }
 
@@ -119,7 +120,7 @@ impl TryFrom<&str> for Ciphertext {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut elems = Vec::new();
-        for encoded in value.split(":") {
+        for encoded in value.split(':') {
             let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
             elems.push(elem);
         }
@@ -148,7 +149,7 @@ mod test {
     fn test_pubkey_serde() {
         let mut rng = rand::thread_rng();
         let x = Scalar::random(&mut rng);
-        let y = PublicKey::new(GENERATOR.scaled(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x));
 
         let encoded = y.as_base64();
         let decoded = PublicKey::try_from_base64(encoded.as_str()).unwrap();
@@ -159,14 +160,14 @@ mod test {
     fn test_ciphertext_serde() {
         let mut rng = rand::thread_rng();
         let x = Scalar::random(&mut rng);
-        let y = PublicKey::new(GENERATOR.scaled(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x));
 
         let r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&r);
 
         let r = Scalar::random(&mut rng);
 
-        let ct = y.encrypt(&m.into(), &r);
+        let ct = y.encrypt(&m, &r);
 
         let ct_str = ct.to_string();
 
@@ -177,7 +178,7 @@ mod test {
     fn test_homomorphism() {
         let mut rng = rand::thread_rng();
         let x = Scalar::random(&mut rng);
-        let y = PublicKey::new(GENERATOR.scaled(&x).into());
+        let y = PublicKey::new(GENERATOR.scaled(&x));
 
         // Construct two messages
         let r1 = Scalar::random(&mut rng);
@@ -189,14 +190,14 @@ mod test {
         let r2 = Scalar::random(&mut rng);
 
         // Encrypt the messages
-        let ct1 = y.encrypt(&m1.into(), &r1);
-        let ct2 = y.encrypt(&m2.into(), &r2);
+        let ct1 = y.encrypt(&m1, &r1);
+        let ct2 = y.encrypt(&m2, &r2);
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);
         let decryption = prod.decrypt(&x);
 
-        let combined = &m1 + &m2;
+        let combined = m1 + m2;
 
         assert_eq!(combined, decryption);
     }

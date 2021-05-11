@@ -26,7 +26,7 @@ fn main() {
     println!("setup in {}ms", (now - then).as_millis());
 
     let then = Instant::now();
-    let shuffle = Shuffle::new(&mut rng, cts.clone(), &pubkey).unwrap();
+    let shuffle = Shuffle::new(&mut rng, cts, &pubkey).unwrap();
     let now = Instant::now();
     println!("shuffled {}x{} in {}ms", n, m, (now - then).as_millis());
 

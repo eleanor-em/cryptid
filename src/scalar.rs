@@ -141,7 +141,7 @@ impl From<[u8; 32]> for Scalar {
 impl From<[u8; 64]> for Scalar {
     fn from(bytes: [u8; 64]) -> Self {
         Self(DalekScalar::from_bytes_mod_order_wide(&bytes).reduce())
-    }
+    } 
 }
 
 impl TryFrom<Vec<u8>> for Scalar {
@@ -153,9 +153,7 @@ impl TryFrom<Vec<u8>> for Scalar {
         } else {
             let max = bytes.len().min(64);
             let mut buf = [0; 64];
-            for i in 0..max {
-                buf[i] = bytes[i];
-            }
+            buf[..max].clone_from_slice(&bytes[..max]);
 
             Ok(buf.into())
         }
@@ -183,6 +181,7 @@ impl From<BigUint> for Scalar {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<BigUint> for Scalar {
     fn into(self) -> BigUint {
         BigUint::from_bytes_le(self.as_bytes())
