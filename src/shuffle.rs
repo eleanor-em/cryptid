@@ -23,7 +23,7 @@ impl Permutation {
         let mut nums: Vec<_> = (0..n).collect();
 
         for i in 0..n {
-            let k = rng.gen_range(i..n);
+            let k = rng.gen_range(i, n);
             map.push(nums[k]);
             nums[k] = nums[i];
         }
