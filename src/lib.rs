@@ -2,7 +2,6 @@
 #![allow(clippy::clippy::many_single_char_names)]
 #![allow(clippy::clippy::suspicious_operation_groupings)]
 #![allow(clippy::clippy::from_over_into)]
-
 // Don't run clippy in tests
 #![cfg_attr(test, allow(clippy::all))]
 

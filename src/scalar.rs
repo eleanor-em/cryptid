@@ -141,7 +141,7 @@ impl From<[u8; 32]> for Scalar {
 impl From<[u8; 64]> for Scalar {
     fn from(bytes: [u8; 64]) -> Self {
         Self(DalekScalar::from_bytes_mod_order_wide(&bytes).reduce())
-    } 
+    }
 }
 
 impl TryFrom<Vec<u8>> for Scalar {

@@ -178,9 +178,7 @@ impl Shuffle {
             })
             .collect();
 
-        let perm_challenges: Vec<_> = (0..n)
-            .map(|i| challenges[self.perm.map[i]])
-            .collect();
+        let perm_challenges: Vec<_> = (0..n).map(|i| challenges[self.perm.map[i]]).collect();
 
         let chain = CommitChain::new(rng, commit_ctx, &perm_challenges);
 
