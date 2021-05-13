@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use serde::{Deserialize, Serialize};
 
 use crate::threshold::EncodingError;
 use crate::{curve, CryptoError};
@@ -125,17 +125,31 @@ impl Ciphertext {
 
     pub fn decrypt(&self, secret_key: &Scalar) -> Vec<u8> {
         // TODO: Use Result instead of unwrap
-        let decrypted =  self.decrypt_curve(secret_key).decoded().unwrap().to_bytes().to_vec();
+        let decrypted = self
+            .decrypt_curve(secret_key)
+            .decoded()
+            .unwrap()
+            .to_bytes()
+            .to_vec();
         let trim_pos = decrypted.iter().rposition(|b| *b != 0);
 
         match trim_pos {
             None => vec![],
-            Some(pos) => decrypted[..pos + 1].to_vec()
+            Some(pos) => decrypted[..pos + 1].to_vec(),
         }
     }
 
     pub fn decrypt_curve(&self, secret_key: &Scalar) -> CurveElem {
         self.c2 - (self.c1.scaled(secret_key))
+    }
+
+    pub fn as_bytes(&self) -> [u8; 64] {
+        let mut bytes = [0; 64];
+
+        bytes[0..32].copy_from_slice(&self.c1.as_bytes());
+        bytes[32..].copy_from_slice(&self.c2.as_bytes());
+
+        bytes
     }
 }
 
