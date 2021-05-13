@@ -570,7 +570,7 @@ mod test {
         let r = Scalar::random(&mut rng);
         let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
-        let ct = pk.encrypt(&m, &r);
+        let ct = pk.encrypt_curve(&m, &r);
 
         let mut decrypted = Decryption::new(parties.first().unwrap().min_trustees, &ct);
 
@@ -594,7 +594,7 @@ mod test {
         let r = Scalar::random(&mut rng);
         let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
-        let ct = pk.encrypt(&m, &r);
+        let ct = pk.encrypt_curve(&m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate(k as usize);
@@ -621,7 +621,7 @@ mod test {
         let r = Scalar::random(&mut rng);
         let m_r = Scalar::random(&mut rng);
         let m = GENERATOR.scaled(&m_r);
-        let ct = pk.encrypt(&m, &r);
+        let ct = pk.encrypt_curve(&m, &r);
 
         let k = parties.first().unwrap().min_trustees;
         parties.truncate((k - 1) as usize);

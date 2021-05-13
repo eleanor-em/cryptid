@@ -281,7 +281,7 @@ mod tests {
 
         let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let enc = pk.encrypt(&m, &r);
+        let enc = pk.encrypt_curve(&m, &r);
 
         let proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         let ser = proof.to_string();
@@ -298,7 +298,7 @@ mod tests {
 
         let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let enc = pk.encrypt(&m, &r);
+        let enc = pk.encrypt_curve(&m, &r);
 
         let proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         assert!(proof.verify());
@@ -313,7 +313,7 @@ mod tests {
 
         let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let enc = pk.encrypt(&m, &r);
+        let enc = pk.encrypt_curve(&m, &r);
 
         let mut proof = PrfKnowPlaintext::new(&mut rng, enc, r);
         proof.r.0 += &DalekScalar::one();
@@ -362,7 +362,7 @@ mod tests {
 
         let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let enc = pk.encrypt(&m, &r);
+        let enc = pk.encrypt_curve(&m, &r);
         let dec = enc.c1.scaled(&x);
 
         let proof = PrfDecryption::new(&mut rng, enc, dec, x, pk.y);
@@ -377,7 +377,7 @@ mod tests {
 
         let m = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let enc = pk.encrypt(&m, &r);
+        let enc = pk.encrypt_curve(&m, &r);
         let dec = enc.c1.scaled(&x);
 
         let mut proof = PrfDecryption::new(&mut rng, enc, dec, x, pk.y);

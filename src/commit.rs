@@ -254,11 +254,11 @@ mod tests {
 
         let x = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let ct = pk.encrypt(&x, &r);
+        let ct = pk.encrypt_curve(&x, &r);
 
         let x_prime = CurveElem::random(&mut rng);
         let r_prime = Scalar::random(&mut rng);
-        let ct_prime = pk.encrypt(&x_prime, &r_prime);
+        let ct_prime = pk.encrypt_curve(&x_prime, &r_prime);
 
         let r1 = Scalar::random(&mut rng);
         let r2 = Scalar::random(&mut rng);
@@ -285,7 +285,7 @@ mod tests {
 
         let x = CurveElem::random(&mut rng);
         let r = Scalar::random(&mut rng);
-        let ct = pk.encrypt(&x, &r);
+        let ct = pk.encrypt_curve(&x, &r);
 
         let r1 = Scalar::random(&mut rng);
         let r2 = Scalar::random(&mut rng);

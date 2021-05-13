@@ -529,7 +529,7 @@ mod tests {
             .iter()
             .map(|r| {
                 let message = CurveElem::random(&mut rng);
-                (0..m).map(|_| pubkey.encrypt(&message, &r)).collect()
+                (0..m).map(|_| pubkey.encrypt_curve(&message, &r)).collect()
             })
             .collect();
 
@@ -553,7 +553,7 @@ mod tests {
             .map(|r| {
                 (0..m)
                     .map(|_| {
-                        pubkey.encrypt(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
+                        pubkey.encrypt_curve(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
                     })
                     .collect()
             })
@@ -590,7 +590,7 @@ mod tests {
             .map(|r| {
                 (0..m)
                     .map(|_| {
-                        pubkey.encrypt(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
+                        pubkey.encrypt_curve(&CurveElem::try_encode(Scalar::from(16u32)).unwrap(), &r)
                     })
                     .collect()
             })

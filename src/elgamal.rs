@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-
 use serde::{Deserialize, Serialize};
 
 use crate::threshold::EncodingError;
@@ -20,12 +19,32 @@ impl PublicKey {
         Self { y: value }
     }
 
-    pub fn encrypt(&self, m: &CurveElem, r: &Scalar) -> Ciphertext {
+    /// Encrypt a message. The message cannot have any trailing null (0u8) bytes, nor can it be over 32 bytes long
+    pub fn encrypt<R: Rng + CryptoRng>(&self, rng: &mut R, message: &[u8]) -> Ciphertext {
+        if message.len() != 0 && message[message.len() - 1] == 0 {
+            // TODO: use a result
+            panic!("Cannot encrypt message with trailing null (0u8) bytes")
+        }
+
+        let n = message.len();
+        let mut array = [0; 32];
+        array[..n].copy_from_slice(&message);
+
+        let m = CurveElem::try_encode(Scalar::from(array)).unwrap();
+
+        let r = Scalar::random(rng);
+
+        self.encrypt_curve(&m, &r)
+    }
+
+    pub fn encrypt_curve(&self, m: &CurveElem, r: &Scalar) -> Ciphertext {
         let c1 = GENERATOR.scaled(r);
         let c2 = m + &self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
 
+    /// Re-encrypt the ciphertext, replacing the random factors in the ciphertext with `r`.
+    /// The encrypted message is the same, but an outside observer cannot tell that the two ciphertexts are related.
     pub fn rerand(self, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
         let c1 = ct.c1 + GENERATOR.scaled(r);
         let c2 = ct.c2 + self.y.scaled(r);
@@ -104,7 +123,18 @@ impl Ciphertext {
         }
     }
 
-    pub fn decrypt(&self, secret_key: &Scalar) -> CurveElem {
+    pub fn decrypt(&self, secret_key: &Scalar) -> Vec<u8> {
+        // TODO: Use Result instead of unwrap
+        let decrypted =  self.decrypt_curve(secret_key).decoded().unwrap().to_bytes().to_vec();
+        let trim_pos = decrypted.iter().rposition(|b| *b != 0);
+
+        match trim_pos {
+            None => vec![],
+            Some(pos) => decrypted[..pos + 1].to_vec()
+        }
+    }
+
+    pub fn decrypt_curve(&self, secret_key: &Scalar) -> CurveElem {
         self.c2 - (self.c1.scaled(secret_key))
     }
 }
@@ -146,6 +176,23 @@ mod test {
     use std::convert::TryFrom;
 
     #[test]
+    fn test_encrypt_decrypt() {
+        let mut rng = rand::thread_rng();
+        let x = Scalar::random(&mut rng);
+        let y = PublicKey::new(GENERATOR.scaled(&x));
+
+        // Construct a messages
+        let message = "ABC123";
+
+        let ciphertext = y.encrypt(&mut rng, message.as_bytes());
+
+        let decrypted_bytes = ciphertext.decrypt(&x);
+        let decrypted = std::str::from_utf8(&decrypted_bytes).unwrap();
+
+        assert_eq!(message, decrypted);
+    }
+
+    #[test]
     fn test_pubkey_serde() {
         let mut rng = rand::thread_rng();
         let x = Scalar::random(&mut rng);
@@ -167,7 +214,7 @@ mod test {
 
         let r = Scalar::random(&mut rng);
 
-        let ct = y.encrypt(&m, &r);
+        let ct = y.encrypt_curve(&m, &r);
 
         let ct_str = ct.to_string();
 
@@ -190,12 +237,12 @@ mod test {
         let r2 = Scalar::random(&mut rng);
 
         // Encrypt the messages
-        let ct1 = y.encrypt(&m1, &r1);
-        let ct2 = y.encrypt(&m2, &r2);
+        let ct1 = y.encrypt_curve(&m1, &r1);
+        let ct2 = y.encrypt_curve(&m2, &r2);
 
         // Compare the added encryption to the added messages
         let prod = ct1.add(&ct2);
-        let decryption = prod.decrypt(&x);
+        let decryption = prod.decrypt_curve(&x);
 
         let combined = m1 + m2;
 
