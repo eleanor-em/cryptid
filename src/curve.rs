@@ -35,7 +35,7 @@ impl CurveElem {
 
     pub fn try_encode(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
-        let x: BigUint = s.clone().into();
+        let x: BigUint = s.into();
         let bits = x.bits() as usize;
 
         let mut s = s.0;

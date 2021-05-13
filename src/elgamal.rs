@@ -21,7 +21,7 @@ impl PublicKey {
 
     /// Encrypt a message. The message cannot have any trailing null (0u8) bytes, nor can it be over 32 bytes long
     pub fn encrypt<R: Rng + CryptoRng>(&self, rng: &mut R, message: &[u8]) -> Ciphertext {
-        if message.len() != 0 && message[message.len() - 1] == 0 {
+        if !message.is_empty() && message[message.len() - 1] == 0 {
             // TODO: use a result
             panic!("Cannot encrypt message with trailing null (0u8) bytes")
         }
