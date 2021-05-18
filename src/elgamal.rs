@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
 use crate::threshold::EncodingError;
+use crate::trim_null_bytes;
 use crate::{curve, CryptoError};
 use crate::{AsBase64, Scalar};
 use curve::GENERATOR;
@@ -131,12 +132,8 @@ impl Ciphertext {
             .unwrap()
             .to_bytes()
             .to_vec();
-        let trim_pos = decrypted.iter().rposition(|b| *b != 0);
 
-        match trim_pos {
-            None => vec![],
-            Some(pos) => decrypted[..pos + 1].to_vec(),
-        }
+        trim_null_bytes(decrypted)
     }
 
     pub fn decrypt_curve(&self, secret_key: &Scalar) -> CurveElem {

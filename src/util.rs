@@ -61,3 +61,12 @@ macro_rules! base64_serde {
         }
     };
 }
+
+pub fn trim_null_bytes(input: Vec<u8>) -> Vec<u8> {
+    let trim_pos = input.iter().rposition(|b| *b != 0);
+
+    match trim_pos {
+        None => vec![],
+        Some(pos) => input[..pos + 1].to_vec(),
+    }
+}

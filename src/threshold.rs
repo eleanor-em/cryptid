@@ -11,6 +11,7 @@ use crate::curve::GENERATOR;
 use crate::curve::{CurveElem, Polynomial};
 use crate::elgamal::{Ciphertext, PublicKey};
 use crate::scalar::DalekScalar;
+use crate::trim_null_bytes;
 use crate::util::AsBase64;
 use crate::{zkp, CryptoError, Scalar};
 
@@ -443,7 +444,7 @@ impl Decryption {
 
 impl Threshold for Decryption {
     type Error = CryptoError;
-    type Destination = CurveElem;
+    type Destination = Vec<u8>;
 
     fn is_complete(&self) -> bool {
         self.dec_shares.len() as usize >= self.min_trustees
@@ -462,7 +463,12 @@ impl Threshold for Decryption {
                         share.share.scaled(&lagrange)
                     })
                     .sum();
-                Ok(self.ct.c2 - dec_factor)
+
+                let decrypted_curve_elem = self.ct.c2 - dec_factor;
+                let decrypted = decrypted_curve_elem.decoded().unwrap().to_bytes().to_vec();
+
+                // TODO: Perhaps store the length independently
+                Ok(trim_null_bytes(decrypted))
             } else {
                 Err(CryptoError::ShareRejected)
             }
@@ -477,6 +483,7 @@ mod test {
     use crate::curve::GENERATOR;
     use crate::elgamal::CurveElem;
     use crate::threshold::{Decryption, Threshold, ThresholdGenerator, ThresholdParty};
+    use crate::trim_null_bytes;
     use crate::util::AsBase64;
     use crate::Scalar;
     use std::collections::HashMap;
@@ -591,8 +598,8 @@ mod test {
         });
 
         assert_eq!(
-            decrypted.finish().unwrap().decoded().unwrap().as_base64(),
-            m.decoded().unwrap().as_base64()
+            decrypted.finish().unwrap(),
+            trim_null_bytes(m.decoded().unwrap().as_bytes().to_vec())
         );
     }
 
@@ -613,7 +620,6 @@ mod test {
         let mut decrypted = Decryption::new(k, &ct);
         parties.iter_mut().for_each(|party| {
             let share = party.decrypt_share(&ct, &mut rng);
-
             let pk_proof = party.pubkey_proof();
 
             // Verify the share
@@ -624,8 +630,8 @@ mod test {
 
         assert!(decrypted.verify());
         assert_eq!(
-            decrypted.finish().unwrap().decoded().unwrap().as_base64(),
-            m.decoded().unwrap().as_base64()
+            decrypted.finish().unwrap(),
+            trim_null_bytes(m.decoded().unwrap().as_bytes().to_vec())
         );
     }
 

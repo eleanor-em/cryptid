@@ -23,6 +23,8 @@ use ring::digest;
 pub use crate::scalar::Scalar;
 pub use crate::util::AsBase64;
 
+pub(crate) use util::trim_null_bytes;
+
 #[derive(Clone)]
 pub struct Hasher {
     ctx: digest::Context,
