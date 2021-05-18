@@ -381,6 +381,17 @@ pub struct DecryptShare {
     proof: zkp::PrfDecryption,
 }
 
+impl DecryptShare {
+    pub fn verify(&self, pubkey_proof: &PubkeyProof, cipherext: &Ciphertext) -> bool {
+        // Verify the proof, and that the parameters are what they're supposed to be
+        self.proof.verify()
+            && self.proof.public_key == pubkey_proof.0
+            && self.proof.ct == *cipherext
+            && self.proof.dec_factor == self.share
+            && self.proof.g == GENERATOR
+    }
+}
+
 #[derive(Debug)]
 pub struct Decryption {
     min_trustees: usize,
@@ -602,6 +613,12 @@ mod test {
         let mut decrypted = Decryption::new(k, &ct);
         parties.iter_mut().for_each(|party| {
             let share = party.decrypt_share(&ct, &mut rng);
+
+            let pk_proof = party.pubkey_proof();
+
+            // Verify the share
+            assert!(share.verify(&pk_proof, &ct));
+
             decrypted.add_share(party.index, &party.pubkey_proof(), &share);
         });
 
