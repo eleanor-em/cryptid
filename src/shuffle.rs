@@ -115,6 +115,10 @@ impl Shuffle {
         &self.outputs
     }
 
+    pub fn into_outputs(self) -> Vec<Vec<Ciphertext>> {
+        self.outputs
+    }
+
     pub fn gen_proof<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
