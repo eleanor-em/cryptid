@@ -6,7 +6,7 @@ use crate::elgamal::{CryptoContext, Ciphertext};
 use std::fmt::{Display, Formatter};
 use std::convert::TryFrom;
 
-const KNOW_PLAINTEXT_TAG: &'static str = "KNOW_PLAINTEXT";
+const KNOW_PLAINTEXT_TAG: &str = "KNOW_PLAINTEXT";
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfKnowPlaintext {
@@ -69,7 +69,7 @@ impl PrfKnowPlaintext {
 
     pub fn verify(&self) -> bool {
         let c = Self::challenge(&self.g, &self.ct, &self.blinded_g);
-        self.g.scaled(&self.r) == &self.blinded_g + &self.ct.c1.scaled(&c)
+        self.g.scaled(&self.r) == self.blinded_g + self.ct.c1.scaled(&c)
     }
 }
 
@@ -92,7 +92,7 @@ impl Display for PrfEqDlogs {
     }
 }
 
-const EQ_DLOGS_TAG: &'static str = "EQ_DLOGS";
+const EQ_DLOGS_TAG: &str = "EQ_DLOGS";
 
 impl PrfEqDlogs {
     fn challenge(f: &CurveElem,
@@ -122,13 +122,13 @@ impl PrfEqDlogs {
         let z = ctx.random_scalar();
         let blinded_base1 = base1.scaled(&z);
         let blinded_base2 = base2.scaled(&z);
-        let c = Self::challenge(&base1, &base2, &result1, &result2, &blinded_base1, &blinded_base2);
+        let c = Self::challenge(base1, base2, result1, result2, &blinded_base1, &blinded_base2);
         let r = Scalar(z.0 + c.0 * power.0);
         Self {
-            result1: result1.clone(),
-            base1: base1.clone(),
-            result2: result2.clone(),
-            base2: base2.clone(),
+            result1: *result1,
+            base1: *base1,
+            result2: *result2,
+            base2: *base2,
             blinded_base1,
             blinded_base2,
             r
@@ -137,12 +137,12 @@ impl PrfEqDlogs {
 
     pub fn verify(&self) -> bool {
         let c = Self::challenge(&self.base1, &self.base2, &self.result1, &self.result2, &self.blinded_base1, &self.blinded_base2);
-        self.base1.scaled(&self.r) == &self.blinded_base1 + &self.result1.scaled(&c)
-            && self.base2.scaled(&self.r) == &self.blinded_base2 + &self.result2.scaled(&c)
+        self.base1.scaled(&self.r) == self.blinded_base1 + self.result1.scaled(&c)
+            && self.base2.scaled(&self.r) == self.blinded_base2 + self.result2.scaled(&c)
     }
 }
 
-const DECRYPTION_TAG: &'static str = "DECRYPTION";
+const DECRYPTION_TAG: &str = "DECRYPTION";
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PrfDecryption {
@@ -183,8 +183,8 @@ impl PrfDecryption {
 
     pub fn verify(&self) -> bool {
         let c = Self::challenge(&self.g, &self.ct, &self.dec_factor, &self.public_key);
-        self.g.scaled(&self.r) == &self.blinded_g + &self.public_key.scaled(&c)
-            && self.ct.c1.scaled(&self.r) == &self.blinded_c1 + &self.dec_factor.scaled(&c)
+        self.g.scaled(&self.r) == self.blinded_g + self.public_key.scaled(&c)
+            && self.ct.c1.scaled(&self.r) == self.blinded_c1 + self.dec_factor.scaled(&c)
     }
 }
 

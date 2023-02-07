@@ -32,8 +32,8 @@ impl PublicKey {
     }
 
     pub fn rerand(self, ctx: &CryptoContext, ct: &Ciphertext, r: &Scalar) -> Ciphertext {
-        let c1 = &ct.c1 + &ctx.g_to(r);
-        let c2 = &ct.c2 + &self.y.scaled(r);
+        let c1 = ct.c1 + ctx.g_to(r);
+        let c2 = ct.c2 + self.y.scaled(r);
         Ciphertext { c1, c2 }
     }
 }
@@ -96,8 +96,8 @@ impl Ciphertext {
 
     pub fn add(&self, rhs: &Self) -> Self {
         Self {
-            c1: &self.c1 + &rhs.c1,
-            c2: &self.c2 + &rhs.c2,
+            c1: self.c1 + rhs.c1,
+            c2: self.c2 + rhs.c2,
         }
     }
 
@@ -109,7 +109,7 @@ impl Ciphertext {
     }
 
     pub fn decrypt(&self, secret_key: &Scalar) -> CurveElem {
-        &self.c2 - &(self.c1.scaled(secret_key))
+        self.c2 - self.c1.scaled(secret_key)
     }
 }
 
@@ -124,7 +124,7 @@ impl TryFrom<&str> for Ciphertext {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut elems = Vec::new();
-        for encoded in value.split(":") {
+        for encoded in value.split(':') {
             let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
             elems.push(elem);
         }
@@ -150,9 +150,7 @@ pub struct CryptoContext {
 
 impl Clone for CryptoContext {
     fn clone(&self) -> Self {
-        let rng = self.rng.clone();
-        let g = self.g.clone();
-        Self { rng, g }
+        Self { rng: self.rng.clone(), g: self.g }
     }
 }
 
@@ -162,7 +160,7 @@ impl CryptoContext {
         let rng = {
             let rng = ring::rand::SystemRandom::new();
             let mut buf = [0; 32];
-            rng.fill(&mut buf).map_err(|e|  CryptoError::Unspecified(e))?;
+            rng.fill(&mut buf).map_err(CryptoError::Unspecified)?;
             Arc::new(Mutex::new(ChaCha20Rng::from_seed(buf)))
         };
 
@@ -183,7 +181,7 @@ impl CryptoContext {
     }
 
     pub fn generator(&self) -> CurveElem {
-        self.g.clone()
+        self.g
     }
 
     pub fn gen_elgamal_key_pair(&self) -> KeyPair {

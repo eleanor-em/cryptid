@@ -6,6 +6,11 @@ use std::iter::{Sum, Product};
 use std::convert::{TryFrom, TryInto};
 use crate::curve::CurveElem;
 
+use base64::{engine::{self, general_purpose}, alphabet, Engine};
+
+const ENGINE: engine::GeneralPurpose =
+    engine::GeneralPurpose::new(&alphabet::STANDARD, general_purpose::NO_PAD);
+
 pub(crate) type DalekScalar = InternalDalekScalar;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -33,11 +38,11 @@ impl AsBase64 for Scalar {
     type Error = CryptoError;
 
     fn as_base64(&self) -> String {
-        base64::encode(self.as_bytes())
+        ENGINE.encode(self.as_bytes())
     }
 
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
-        let bytes = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        let bytes = ENGINE.decode(encoded).map_err(|_| CryptoError::Decoding)?;
         if bytes.len() != 32 {
             Err(CryptoError::Decoding)
         } else {
@@ -145,9 +150,7 @@ impl TryFrom<Vec<u8>> for Scalar {
         } else {
             let max = bytes.len().min(64);
             let mut buf = [0; 64];
-            for i in 0..max {
-                buf[i] = bytes[i];
-            }
+            buf[..max].copy_from_slice(&bytes[..max]);
 
             Ok(buf.into())
         }
@@ -175,9 +178,9 @@ impl From<BigUint> for Scalar {
     }
 }
 
-impl Into<BigUint> for Scalar {
-    fn into(self) -> BigUint {
-        BigUint::from_bytes_le(self.as_bytes())
+impl From<Scalar> for BigUint {
+    fn from(x: Scalar) -> Self {
+        BigUint::from_bytes_le(x.as_bytes())
     }
 }
 

@@ -12,6 +12,11 @@ use crate::elgamal::CryptoContext;
 use crate::util::{AsBase64, K, SCALAR_MAX_BYTES};
 use crate::scalar::DalekScalar;
 
+use base64::{engine::{self, general_purpose}, alphabet, Engine};
+
+const ENGINE: engine::GeneralPurpose =
+    engine::GeneralPurpose::new(&alphabet::STANDARD, general_purpose::NO_PAD);
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct CurveElem(pub(crate) RistrettoPoint);
 
@@ -30,7 +35,7 @@ impl CurveElem {
 
     pub fn try_encode(s: Scalar) -> Result<Self, CryptoError> {
         // Can encode at most 252 - K bits
-        let x: BigUint = s.clone().into();
+        let x: BigUint = s.into();
         let bits = x.bits() as usize;
 
         let mut s = s.0;
@@ -76,11 +81,11 @@ impl AsBase64 for CurveElem {
     type Error = CryptoError;
 
     fn as_base64(&self) -> String {
-            base64::encode(&self.as_bytes())
+            ENGINE.encode(&self.as_bytes())
         }
 
     fn try_from_base64(encoded: &str) -> Result<Self, Self::Error> {
-        let decoded = base64::decode(encoded).map_err(|_| CryptoError::Decoding)?;
+        let decoded = ENGINE.decode(encoded).map_err(|_| CryptoError::Decoding)?;
         if decoded.len() == 32 {
             Ok(Self(CompressedRistretto::from_slice(&decoded).decompress().ok_or(CryptoError::Decoding)?))
         } else {
@@ -189,14 +194,13 @@ impl TryFrom<u64> for CurveElem {
 #[derive(Debug)]
 pub struct Polynomial {
     k: usize,
-    n: usize,
     pub x_i: Scalar,
     ctx: CryptoContext,
     coefficients: Vec<DalekScalar>,
 }
 
 impl Polynomial {
-    pub fn random(ctx: &CryptoContext, k: usize, n: usize) -> Polynomial {
+    pub fn random(ctx: &CryptoContext, k: usize) -> Polynomial {
         let ctx = ctx.clone();
         let x_i = ctx.random_scalar();
         let mut coefficients = Vec::with_capacity(k);
@@ -205,12 +209,12 @@ impl Polynomial {
             coefficients.push(ctx.random_scalar().0);
         }
 
-        Polynomial { k, n, x_i, ctx, coefficients }
+        Polynomial { k, x_i, ctx, coefficients }
     }
 
     pub fn get_public_params(&self) -> Vec<CurveElem> {
         self.coefficients.iter()
-            .map(|coeff| self.ctx.g_to(&Scalar(coeff.clone())))
+            .map(|coeff| self.ctx.g_to(&Scalar(*coeff)))
             .collect()
     }
 

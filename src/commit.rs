@@ -64,9 +64,9 @@ impl PedersenCtx {
     /// Commit to the chosen pair of values.
     pub fn commit(&self, x: &Scalar, r: &Scalar) -> Commitment {
         Commitment {
-            g: self.g.clone(),
-            h: self.h.clone(),
-            value: self.g.scaled(&x) + self.h.scaled(&r)
+            g: self.g,
+            h: self.h,
+            value: self.g.scaled(x) + self.h.scaled(r)
         }
     }
 
@@ -102,13 +102,13 @@ impl TryFrom<&str> for Commitment {
     type Error = EncodingError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let elems: Vec<_> = value.split(":").collect();
+        let elems: Vec<_> = value.split(':').collect();
         if elems.len() != 3 {
             return Err(EncodingError::Length);
         }
 
         let mut elems: Vec<_> = elems.into_iter()
-            .map(|s| CurveElem::try_from_base64(s))
+            .map(CurveElem::try_from_base64)
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Base64)?;
 
@@ -124,7 +124,7 @@ impl TryFrom<&str> for Commitment {
 impl Commitment {
     pub fn validate(&self, commit_ctx: &PedersenCtx, x: &Scalar, r: &Scalar) -> bool {
         self.g == commit_ctx.g && self.h == commit_ctx.h &&
-            self.value == self.g.scaled(&x) + self.h.scaled(&r)
+            self.value == self.g.scaled(x) + self.h.scaled(r)
     }
 }
 
@@ -136,7 +136,7 @@ pub struct CtCommitment {
 
 impl Display for CtCommitment {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}-{}", self.a.to_string(), self.b.to_string())
+        write!(f, "{}-{}", self.a, self.b)
     }
 }
 
@@ -150,13 +150,13 @@ impl TryFrom<&str> for CtCommitment {
     type Error = EncodingError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let elems: Vec<_> = value.split("-").collect();
+        let elems: Vec<_> = value.split('-').collect();
         if elems.len() != 2 {
             return Err(EncodingError::Length);
         }
 
         let mut elems: Vec<_> = elems.into_iter()
-            .map(|s| Commitment::try_from(s))
+            .map(Commitment::try_from)
             .collect::<Result<_, _>>()
             .map_err(|_| EncodingError::Commitment)?;
 

@@ -44,9 +44,9 @@ impl Permutation {
 
         let mut cs = HashMap::new();
         let mut rs = HashMap::new();
-        for i in 0..n {
+        for (i, gen) in generators.iter().enumerate().take(n) {
             let r_i = ctx.random_scalar();
-            cs.insert(self.map[i], commit_ctx.g.scaled(&r_i) + generators[i]);
+            cs.insert(self.map[i], commit_ctx.g.scaled(&r_i) + *gen);
             rs.insert(self.map[i], r_i);
         }
 
@@ -63,7 +63,7 @@ pub struct Shuffle {
     perm: Permutation,
 }
 
-const SHUFFLE_TAG: &'static str = "SHUFFLE_PROOF";
+const SHUFFLE_TAG: &str = "SHUFFLE_PROOF";
 
 impl Shuffle {
     pub fn new(
@@ -88,7 +88,7 @@ impl Shuffle {
         ).collect();
 
         let new_cts: Vec<Vec<_>> = (&inputs, &factors).into_par_iter().map(|(cts, rs)| {
-            cts.iter().zip(rs).map(|(ct, r)| pubkey.rerand(&ctx, &ct, &r)).collect()
+            cts.iter().zip(rs).map(|(ct, r)| pubkey.rerand(&ctx, ct, r)).collect()
         }).collect();
         let outputs = (0..n).map(|i| new_cts[perm.map[i]].clone()).collect();
 
@@ -160,7 +160,7 @@ impl Shuffle {
         }).collect();
 
         let perm_challenges: Vec<_> = (0..n).map(|i| {
-            challenges[self.perm.map[i]].clone()
+            challenges[self.perm.map[i]]
         }).collect();
 
         let chain = CommitChain::new(ctx, commit_ctx, &perm_challenges)?;
@@ -198,14 +198,14 @@ impl Shuffle {
         let t_2 = commit_ctx.g.scaled(&omegas[1]);
         let t_3 = commit_ctx.g.scaled(&omegas[2])
             + (generators, &omega_primes).into_par_iter()
-            .map(|(h, w)| h.scaled(&w))
+            .map(|(h, w)| h.scaled(w))
             .sum();
 
         let mut t_4s = Vec::new();
         for j in 0..m {
             let (sum_a, sum_b) = (&self.outputs, &omega_primes).into_par_iter()
                 .map(|(cts, omega_prime)| {
-                    (cts[j].c1.scaled(&omega_prime), cts[j].c2.scaled(&omega_prime))
+                    (cts[j].c1.scaled(omega_prime), cts[j].c2.scaled(omega_prime))
                 })
                 .reduce(|| (CurveElem::identity(), CurveElem::identity()), |(a, b), (c_a, c_b)| (a + c_a, b + c_b));
 
@@ -354,12 +354,12 @@ impl ShuffleProof {
         let u = challenges.clone().into_par_iter().product();
         let c_hat = self.chain.commits.last().unwrap() - &h.scaled(&u);
         let c_tilde: CurveElem = (&self.commitments, &challenges).into_par_iter()
-            .map(|(c, u)| c.scaled(&u))
+            .map(|(c, u)| c.scaled(u))
             .sum();
 
         let scaled_cts: Vec<_> = (0..m).map(|j| {
             (&challenges, inputs).into_par_iter()
-                .map(|(u, cts)| (cts[j].c1.scaled(&u), cts[j].c2.scaled(&u)))
+                .map(|(u, cts)| (cts[j].c1.scaled(u), cts[j].c2.scaled(u)))
                 .reduce(|| (CurveElem::identity(), CurveElem::identity()), |(a, b), (c_a, c_b)| (a + c_a, b + c_b))
         }).collect();
 
@@ -385,14 +385,14 @@ impl ShuffleProof {
 
         let t_3_prime = c_tilde.scaled(&-c) + commit_ctx.g.scaled(&self.s_3)
             + (generators, &self.s_primes).into_par_iter()
-            .map(|(h, s_prime)| h.scaled(&s_prime))
+            .map(|(h, s_prime)| h.scaled(s_prime))
             .sum();
 
         let mut t_4_primes = Vec::new();
         for j in 0..m {
             let (sum_a, sum_b) = (outputs, &self.s_primes).into_par_iter()
                 .map(|(cts, s_prime)| {
-                    (cts[j].c1.scaled(&s_prime), cts[j].c2.scaled(&s_prime))
+                    (cts[j].c1.scaled(s_prime), cts[j].c2.scaled(s_prime))
                 })
                 .reduce(|| (CurveElem::identity(), CurveElem::identity()), |(a, b), (c_a, c_b)| (a + c_a, b + c_b));
 
@@ -440,12 +440,12 @@ impl CommitChain {
     ) -> Result<Self, CryptoError> {
         let mut commits = Vec::new();
         let mut rs = Vec::new();
-        let mut last_commit = commit_ctx.h.clone();
+        let mut last_commit = commit_ctx.h;
 
-        for i in 0..challenges.len() {
+        for challenge in challenges {
             let r_i = ctx.random_scalar();
-            let c_i = commit_ctx.g.scaled(&r_i) + last_commit.scaled(&challenges[i]);
-            last_commit = c_i.clone();
+            let c_i = commit_ctx.g.scaled(&r_i) + last_commit.scaled(challenge);
+            last_commit = c_i;
             rs.push(r_i);
             commits.push(c_i);
         }

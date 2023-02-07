@@ -38,11 +38,11 @@ impl Hasher {
     }
 
     pub fn update(&mut self, data: &[u8]) {
-        self.ctx.update(&data);
+        self.ctx.update(data);
     }
 
     pub fn and_update(mut self, data: &[u8]) -> Self {
-        self.update(&data);
+        self.update(data);
         self
     }
 

@@ -43,9 +43,9 @@ pub struct KeygenCommitment {
     elems: Vec<CurveElem>,
 }
 
-impl Into<Vec<CurveElem>> for KeygenCommitment {
-    fn into(self) -> Vec<CurveElem> {
-        self.elems
+impl From<KeygenCommitment> for Vec<CurveElem> {
+    fn from(x: KeygenCommitment) -> Self {
+        x.elems
     }
 }
 
@@ -67,7 +67,7 @@ impl TryFrom<&str> for KeygenCommitment {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut elems = Vec::new();
-        for encoded in value.split(":") {
+        for encoded in value.split(':') {
             let elem = CurveElem::try_from_base64(encoded).map_err(|_| EncodingError::CurveElem)?;
             elems.push(elem);
         }
@@ -97,7 +97,7 @@ impl ThresholdGenerator {
     pub fn new(ctx: &CryptoContext, index: usize, min_trustees: usize, trustee_count: usize) -> Self {
         if index > 0 && index <= trustee_count {
             let ctx = ctx.clone();
-            let f_i = Polynomial::random(&ctx, min_trustees, trustee_count);
+            let f_i = Polynomial::random(&ctx, min_trustees);
             let index = index as usize;
             let min_trustees = min_trustees as usize;
             let trustee_count = trustee_count as usize;
@@ -172,7 +172,7 @@ impl ThresholdGenerator {
         let rhs = rhs.into_iter().sum();
 
         if lhs == rhs {
-            if self.shares.insert(sender_id, share.0.clone()).is_none() {
+            if self.shares.insert(sender_id, share.0).is_none() {
                 // First part of the commitment is a public key share
                 self.pk_parts.push(commitment.elems[0]);
                 Ok(())
@@ -260,9 +260,9 @@ impl Clone for ThresholdParty {
             index: self.index,
             min_trustees: self.min_trustees,
             trustee_count: self.trustee_count,
-            secret_share: self.secret_share.clone(),
-            pubkey_share: self.pubkey_share.clone(),
-            pubkey: self.pubkey.clone(),
+            secret_share: self.secret_share,
+            pubkey_share: self.pubkey_share,
+            pubkey: self.pubkey,
         }
     }
 }
@@ -297,7 +297,7 @@ impl ThresholdParty {
         PubkeyProof(self.pubkey_share)
     }
 
-    pub fn private_share(&self) -> Scalar { self.secret_share.clone() }
+    pub fn private_share(&self) -> Scalar { self.secret_share }
 
     // Returns this party's share of a decryption.
     pub fn decrypt_share(&self, ct: &Ciphertext) -> DecryptShare {
@@ -306,9 +306,9 @@ impl ThresholdParty {
         let proof = zkp::PrfDecryption::new(
             &self.ctx,
             ct.clone(),
-            dec_share.clone(),
-            self.secret_share.clone(),
-            self.pubkey_share.clone());
+            dec_share,
+            self.secret_share,
+            self.pubkey_share);
 
         DecryptShare { share: dec_share, proof }
     }
@@ -412,7 +412,7 @@ impl Threshold for Decryption {
                 let dec_factor = self.dec_shares.keys()
                     .map(|index| (index, &self.dec_shares[index]))
                     .map(|(index, share)| {
-                        let participants = self.dec_shares.keys().map(|&index| index);
+                        let participants = self.dec_shares.keys().copied();
                         let lagrange = Scalar(lambda(participants, *index));
                         share.share.scaled(&lagrange)
                     })
