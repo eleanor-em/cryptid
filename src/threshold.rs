@@ -287,7 +287,7 @@ impl ThresholdParty {
             pubkey
         }
     }
-    
+
     pub fn pubkey(&self) -> PublicKey {
         self.pubkey
     }
@@ -339,13 +339,14 @@ fn lambda<I: Iterator<Item=usize>>(parties: I, j: usize) -> DalekScalar {
         }
     }
 
-    let result = numerator / denominator;
+    let mut result = DalekScalar::from((numerator.abs()) as u32);
+    result *= DalekScalar::from((denominator.abs()) as u32).invert();
 
     // Convert signed int to scalar
-    if result < 0 {
-        -DalekScalar::from((-result) as u32)
+    if (numerator < 0) != (denominator < 0) {
+        -result
     } else {
-        DalekScalar::from(result as u32)
+        result
     }
 }
 
